@@ -1,0 +1,8 @@
+*.DS_Store
+conf/*
+rec
+*.wav
+*.aif
+*.aiff
+._*
+
