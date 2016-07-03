@@ -239,4 +239,11 @@ w.onClose = {
 	responder.remove; // kill the OSC responder
 };
 
+SynthDef(\gmpFreeverb2x2, { arg inbus=0, outbus=0, mix=0.25, room=0.15, damp=0.5, fxlevel=0.75, drylevel=0;
+	var fx, sig;
+	sig = In.ar(outbus, 2);
+	fx = FreeVerb.ar(sig, mix, room, damp);
+	ReplaceOut.ar(outbus, (fx*fxlevel) + (sig*drylevel));
+},[0,0,0.1,0.1,0,0]).send(s);
+
 )
