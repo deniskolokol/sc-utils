@@ -1,0 +1,59 @@
+/*
+Add the folowwing to scdoc.css
+
+Linux: /usr/share/SuperCollider/HelpSource/scdoc.css
+Mac OS: /Library/Application Support/SuperCollider/Help/scdoc.css
+*/
+
+
+/* SuperCollider Help browser custom css */
+/* for 'dracula' theme */
+body {
+  background-color: #282a37;
+  color: #839496;
+}
+a:link, a:visited, a:hover, .category a {
+  color: orange !important;
+}
+.subheader {
+  color: #AAA;
+}
+.cmethodname, .imethodname {
+  background-color: #013947;
+}
+#menubar {
+  background-color: #013947;
+}
+#toc, .submenu {
+  background-color: #013947;
+}
+input {
+  background-color: #065D72;
+}
+#topdoctitle {
+  color: #FFFFFF;
+}
+.note {
+  background-color: #065D72;
+}
+.doclink, h2, h4 {
+  border: none;
+}
+table td {
+  border: 1px solid #065D72;
+}
+pre {
+  border-left: 2px solid #034B5D;
+}
+
+.str { color: #013947; } /* strings */
+.kwd { color: #DC322F; } /* special values like true, nil.. */
+.com { color: #93A1A1; } /* comments */
+.typ { color: #268BD2; } /* class names */
+.lit { color: #6C71C4; } /* numbers and character literals */
+.pun { color: #CB4B16; } /* punctuation */
+.pln { color: #B58900; } /* plain text, methods and variable names */
+.tag { color: #B58900; } /* special variables like super, thisProcess... */
+.dec { color: #2AA198; } /* declarations like var, const... */
+.atn { color: #B58900; } /* symbols */
+.atv { color: #D33682; } /* environment vars */
