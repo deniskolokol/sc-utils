@@ -35,7 +35,7 @@ SynthDef("help-Diskout", {arg bufnum;
 // f = "sr_aaf_cut6.aif"; // filename: 19'55'' - 20'30'' for fade out
 // b = Buffer.read(s, d ++ "8ch/" ++ f, bufnum:10);
 
-d = "/Users/deniskolokol/Music/the_volume/rehearsals/20131106_Josefinska/";
+d = "/path/to/samples/";
 
 f = "proba1.aif";
 

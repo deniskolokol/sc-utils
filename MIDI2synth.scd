@@ -1,5 +1,3 @@
-
-
 (
 NoteOnResponder.removeAll; NoteOffResponder.removeAll;
 
