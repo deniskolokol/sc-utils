@@ -18,10 +18,10 @@ channels.do({ |i|
 	i=i+1;
 });
 
-SCStaticText(w,Rect(5, 5, 40, 18))
+StaticText(w,Rect(5, 5, 40, 18))
 	.string_("in bus")
 	.font_(globalFont1);
-pmInBus= SCPopUpMenu(w, Rect(45, 5, 62, 18))
+pmInBus= PopUpMenu(w, Rect(45, 5, 62, 18))
 	.items_(chlistStereo)
 	.background_(btColorBG)
 	.canFocus_(false)
@@ -64,7 +64,7 @@ btDependOn= RoundButton(w, Rect(250, 5, 40, 18))
 //room
 
 
-SCStaticText(w,Rect(5, 30, 40, 18))
+StaticText(w,Rect(5, 30, 40, 18))
 	.string_("Room")
 	.font_(globalFont1);
 slRoom= SmoothSlider(w, Rect(45, 30, 200, 16))
@@ -77,7 +77,7 @@ slRoom= SmoothSlider(w, Rect(45, 30, 200, 16))
 			if(reverbList[i] != nil, { reverbList[i].set(\room, sl.value) })
 		});
 	});
-nbRoom= SCNumberBox(w,Rect(slRoom.bounds.left+slRoom.bounds.width+5, 30, 40, 16))
+nbRoom= NumberBox(w,Rect(slRoom.bounds.left+slRoom.bounds.width+5, 30, 40, 16))
 	.font_(globalFont1)
 	.value_(slRoom.value)
 	.action_({ |nb|
@@ -88,7 +88,7 @@ nbRoom= SCNumberBox(w,Rect(slRoom.bounds.left+slRoom.bounds.width+5, 30, 40, 16)
 //damp
 
 
-SCStaticText(w,Rect(5, 50, 40, 18))
+StaticText(w,Rect(5, 50, 40, 18))
 	.string_("Damp")
 	.font_(globalFont1);
 slDamp= SmoothSlider(w, Rect(45, 50, 200, 16))
@@ -101,7 +101,7 @@ slDamp= SmoothSlider(w, Rect(45, 50, 200, 16))
 			if(reverbList[i] != nil, { reverbList[i].set(\damp, sl.value) })
 		});
 	});
-nbDamp= SCNumberBox(w,Rect(slDamp.bounds.left+slDamp.bounds.width+5, 50, 40, 16))
+nbDamp= NumberBox(w,Rect(slDamp.bounds.left+slDamp.bounds.width+5, 50, 40, 16))
 	.font_(globalFont1)
 	.value_(slDamp.value)
 	.action_({ |nb|
@@ -112,7 +112,7 @@ nbDamp= SCNumberBox(w,Rect(slDamp.bounds.left+slDamp.bounds.width+5, 50, 40, 16)
 //dry/wet
 
 
-SCStaticText(w,Rect(5, 70, 40, 18))
+StaticText(w,Rect(5, 70, 40, 18))
 	.string_("Dry/Wet")
 	.font_(globalFont1);
 slDryWet= SmoothSlider(w, Rect(45, 70, 200, 16))
@@ -125,7 +125,7 @@ slDryWet= SmoothSlider(w, Rect(45, 70, 200, 16))
 			if(reverbList[i] != nil, { reverbList[i].set(\mix, sl.value) })
 		});
 	});
-nbDryWet= SCNumberBox(w,Rect(slDryWet.bounds.left+slDryWet.bounds.width+5, 70, 40, 16))
+nbDryWet= NumberBox(w,Rect(slDryWet.bounds.left+slDryWet.bounds.width+5, 70, 40, 16))
 	.font_(globalFont1)
 	.value_(slDryWet.value)
 	.action_({ |nb|
@@ -136,7 +136,7 @@ nbDryWet= SCNumberBox(w,Rect(slDryWet.bounds.left+slDryWet.bounds.width+5, 70, 4
 //fx level
 
 
-SCStaticText(w,Rect(5, 90, 40, 18))
+StaticText(w,Rect(5, 90, 40, 18))
 	.string_("Fx level")
 	.font_(globalFont1);
 slFxLevel= SmoothSlider(w, Rect(45, 90, 200, 16))
@@ -150,7 +150,7 @@ slFxLevel= SmoothSlider(w, Rect(45, 90, 200, 16))
 			if(reverbList[i] != nil, { reverbList[i].set(\fxlevel, sl.value) })
 		});
 	});
-nbFxLevel= SCNumberBox(w,Rect(slFxLevel.bounds.left+slFxLevel.bounds.width+5, 90, 40, 16))
+nbFxLevel= NumberBox(w,Rect(slFxLevel.bounds.left+slFxLevel.bounds.width+5, 90, 40, 16))
 	.font_(globalFont1)
 	.value_(slFxLevel.value)
 	.action_({ |nb|
@@ -161,7 +161,7 @@ nbFxLevel= SCNumberBox(w,Rect(slFxLevel.bounds.left+slFxLevel.bounds.width+5, 90
 //dry level
 
 
-SCStaticText(w,Rect(5, 110, 40, 18))
+StaticText(w,Rect(5, 110, 40, 18))
 	.string_("Dry level")
 	.font_(globalFont1);
 slDryLevel= SmoothSlider(w, Rect(45, 110, 200, 16))
@@ -175,7 +175,7 @@ slDryLevel= SmoothSlider(w, Rect(45, 110, 200, 16))
 			if(reverbList[i] != nil, { reverbList[i].set(\level, sl.value) })
 		});
 	});
-nbDryLevel= SCNumberBox(w,Rect(slDryLevel.bounds.left+slDryLevel.bounds.width+5, 110, 40, 16))
+nbDryLevel= NumberBox(w,Rect(slDryLevel.bounds.left+slDryLevel.bounds.width+5, 110, 40, 16))
 	.font_(globalFont1)
 	.value_(slDryLevel.value)
 	.action_({ |nb|
