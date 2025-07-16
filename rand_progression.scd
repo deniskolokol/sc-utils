@@ -78,6 +78,11 @@ var colorBg=Color.grey(0.15);
         var chordScale = Scale.at(chordType);
         var chordDegrees = chordScale.degrees[~baseChordDegrees];
         var chordMidi = chordDegrees + root;
+        // Apply inversion by moving the lowest note(s) up an octave
+        inversion.do {
+            chordMidi[0] = chordMidi[0] + 12;
+            chordMidi = chordMidi.rotate(-1);
+        };
         (
             num: num,
             root: root,
