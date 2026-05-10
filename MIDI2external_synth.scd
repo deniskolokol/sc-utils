@@ -17,6 +17,10 @@ MIDIClient.destinations.do(_.postln);
 // Optional: Set latency to match your server for better sync
 ~neutronOut.latency = Server.default.latency;
 
+// Option 1:
+// ---------
+// Define a MIDI pattern to send note events to the Neutron. In this scenario
+// only NoteOn is used.
 (
 p = Pbind(
     // --- MIDI Specific Keys ---
@@ -41,4 +45,29 @@ p = Pbind(
 )
 
 // Stop the pattern
+// Warning: do not press Cmd+. - this will stop the entire server and all MIDI
+// communication, rendering the last note played indefinitely. Use the line
+// below instead.
 p.stop;
+
+
+
+// Option 2:
+// ---------
+// Send MIDI messages directly without using a pattern. Both NoteOn and NoteOff
+// messages are sent manually.
+(
+// Send a NoteOn message (e.g., Middle C with velocity 100)
+~neutronOut.noteOn(0, 40, 100); // (channel, note, velocity)
+// Wait for a duration (e.g., 1 second) and then send a NoteOff message
+~rout = Routine({
+    1.5.wait; // Wait for 1 second
+    ~neutronOut.noteOff(0, 40, 0); // (channel, note, velocity)
+}).play;
+)
+
+~rout.stop; // Stop the routine if needed
+
+
+// Panic.
+~neutronOut.allNotesOff(0)
