@@ -11,11 +11,11 @@ MIDIClient.destinations.do(_.postln);
 
 // Create the MIDIOut object.
 // Replace the strings below with the exact names from your MIDI destination list.
-// For example: ~neutronOut = MIDIOut.newByName("Scarlett 2i2 MIDI", "Scarlett 2i2 MIDI Port");
-~neutronOut = MIDIOut.newByName("Studio 1824c", "Studio 1824c");
+// For example: ~ifaceMIDIOut = MIDIOut.newByName("Scarlett 2i2 MIDI", "Scarlett 2i2 MIDI Port");
+~ifaceMIDIOut = MIDIOut.newByName("Studio 1824c", "Studio 1824c");
 
 // Optional: Set latency to match your server for better sync
-~neutronOut.latency = Server.default.latency;
+~ifaceMIDIOut.latency = Server.default.latency;
 
 // Option 1:
 // ---------
@@ -25,7 +25,7 @@ MIDIClient.destinations.do(_.postln);
 p = Pbind(
     // --- MIDI Specific Keys ---
     \type, \midi,          // This is a MIDI event
-    \midiout, ~neutronOut, // Send it to your Neutron
+    \midiout, ~ifaceMIDIOut, // Send it to your Neutron
     \midicmd, \noteOn,     // The command is a note (default)
     \chan, 0,              // MIDI Channel (0 is channel 1 for Neutron)
 
@@ -58,11 +58,11 @@ p.stop;
 // messages are sent manually.
 (
 // Send a NoteOn message (e.g., Middle C with velocity 100)
-~neutronOut.noteOn(0, 40, 100); // (channel, note, velocity)
+~ifaceMIDIOut.noteOn(0, 40, 100); // (channel, note, velocity)
 // Wait for a duration (e.g., 1 second) and then send a NoteOff message
 ~rout = Routine({
     1.5.wait; // Wait for 1 second
-    ~neutronOut.noteOff(0, 40, 0); // (channel, note, velocity)
+    ~ifaceMIDIOut.noteOff(0, 40, 0); // (channel, note, velocity)
 }).play;
 )
 
@@ -70,4 +70,4 @@ p.stop;
 
 
 // Panic.
-~neutronOut.allNotesOff(0)
+~ifaceMIDIOut.allNotesOff(0)

@@ -70,7 +70,7 @@ var fillAccents = { |beats, clicks, accentOn|
 // Tempo and time signature settings
 ~beatsPerBar = 5;
 ~clicksPerBeat = 2;
-~accentOn = 0; // Accent on the first and third clicks of each beat
+~accentOn = 1; // Accent on the first and third clicks of each beat
 ~accents = fillAccents.(~beatsPerBar, ~clicksPerBeat, ~accentOn).postln;
 ~tempo = 120;
 ~tempoClock = TempoClock.new(~tempo/60);
