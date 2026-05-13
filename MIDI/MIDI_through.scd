@@ -18,10 +18,11 @@ s.waitForBoot({
     // Initialize the MIDI Client
     MIDIClient.init;
 
-    // Look at the list of MIDI Destinations in the Post window.
-    // You'll see something like:
+    // If necessary, uncomment it to post the list of MIDI Destinations.
+    // In the Post window You'll see something like:
     // MIDI Endpoint("Your MIDI Interface Name", "Port Name")
-    MIDIClient.destinations.do(_.postln);
+    //
+    // MIDIClient.destinations.do(_.postln);
 
     // Create the MIDIOut object.
     // Replace the strings below with the exact names from your MIDI destination list.

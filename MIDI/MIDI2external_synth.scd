@@ -35,7 +35,7 @@ p = Pbind(
     // \degree, Pseq([0, 2, 4, 5, 7, 9, 11, 12], inf),
 
     // Or, use \midinote directly for specific note numbers (e.g., 60 = Middle C)
-    \midinote, Pseq([40, 42, 44, 45, Rest(), Rest(), 47, 49, 51, 52, Rest(), Rest()], inf),
+    \midinote, Pseq([71, 70, 67, 64, Rest(), Rest(), 67, 66, 64, 60, Rest(), Rest()], inf),
 
     // --- Performance Parameters ---
     \dur, 0.25, // Duration between notes (quarter notes)
