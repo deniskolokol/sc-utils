@@ -1,4 +1,11 @@
-
+// MIDI Through Example
+//
+// Useful when:
+// - You want to simply route MIDI from a MIDI keyboard connected via USB to
+//   external synths connected via MIDI Out ports.
+// - You want to use SuperCollider as a MIDI monitor to log incoming MIDI events.
+// - You want to use SuperCollider for MIDI processing (e.g., arpeggiation,
+//   generative patterns, MIDI effects) and send the output to an external synth.
 
 (
 // Connect MIDI keyboard.
