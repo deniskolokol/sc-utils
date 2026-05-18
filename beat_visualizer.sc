@@ -7,7 +7,7 @@ var fontLabel = Font("Menlo", 12);
 var palette = QPalette.dark;
 var colors = (
     \beat: Color.gray(0.2),
-    \click: Color.gray(0.3),
+    \click: Color.gray(0.6),
     \accent: Color.gray(0.8)
 );
 
@@ -70,9 +70,10 @@ var fillAccents = { |beats, clicks, accentOn|
 // Tempo and time signature settings
 ~beatsPerBar = 5;
 ~clicksPerBeat = 2;
-~accentOn = 1; // Accent on the first and third clicks of each beat
-~accents = fillAccents.(~beatsPerBar, ~clicksPerBeat, ~accentOn).postln;
-~tempo = 120;
+//~accentOn = [1, 3]; // Accent on the first and third clicks of each beat
+~accentOn = 1; // Accent on the first click of each beat
+~accents = fillAccents.(~beatsPerBar, ~clicksPerBeat, ~accentOn);
+~tempo = 60;
 ~tempoClock = TempoClock.new(~tempo/60);
 setBeatsPerBar.(~tempoClock, ~beatsPerBar);
 
@@ -93,6 +94,21 @@ beatView = UserView(window, Rect(0, 0, window.bounds.width, window.bounds.height
         var widthBeat = ((view.bounds.width - (margin * 2)) / ~beatsPerBar) - (gap * 2);
         var width = widthBeat / ~clicksPerBeat - gap;
         var height = view.bounds.height - 20 - (margin * 4);
+        var currColor = colorBg;
+        var localRect;
+
+        var getLocalRect = { |left, top, height, width, gap|
+            var localLeft, localTop, localWidth, localHeight;
+
+            localHeight = height - (gap * 2);
+            localWidth = width - gap;
+            localHeight = min(localHeight, localWidth); // Make it a square
+            localWidth = localHeight; // Make it a square
+            localLeft = left + ((width - localWidth) / 2); // Center horizontally
+            localTop = top + ((height - (gap * 2) - localHeight) / 2); // Center vertically
+
+            Rect(localLeft, localTop, localWidth, localHeight)
+        };
 
         Pen.font = fontLabel;
         if (~tempoClock.isRunning) {
@@ -108,29 +124,39 @@ beatView = UserView(window, Rect(0, 0, window.bounds.width, window.bounds.height
                 top = margin + 20; // Leave space for the label
 
                 // Draw the beat rectangles.
+                Pen.width = 1;
                 Pen.strokeColor_(colors[\beat]);
                 Pen.strokeRect(Rect(left, top, widthBeat, height));
 
-                // Draw the click rectangles within each beat.
+                // Draw the click circles within each beat.
                 Pen.strokeColor_(colors[\click]);
+                Pen.width = 4;
+
                 ~clicksPerBeat.do { |click|
                     left = margin + (beat * (widthBeat + (2 * gap))) + (click * width) + (gap * (click + 1));
                     top = margin + 20 + gap;
+
+                    localRect = getLocalRect.(left, top, height, width, gap);
+
                     if (beat > ~tempoClock.beatInBar.floor or:
                             (beat == ~tempoClock.beatInBar.floor and: 
                                 (click > ((~tempoClock.beatInBar - ~tempoClock.beatInBar.floor) * ~clicksPerBeat).floor)
                             )
                         ) {
-                        Pen.strokeRect(Rect(left, top, width - gap, height - (gap * 2)));
+                        Pen.addOval(localRect);
+                        Pen.stroke;
                     } {
                         if (~accents[beat][click] == 1) {
-                            Pen.fillColor = colors[\accent];
-                            Pen.fillRect(Rect(left, top, width, height - (gap * 2)));
+                            currColor = Color.gray((beat+1)/(~tempoClock.beatInBar+1));
+                            Pen.fillColor = currColor;
+                            Pen.addOval(localRect);
                         } {
-                            // Non-accented clicks are dimmer and smaller.
-                            Pen.fillColor = colors[\click];
-                            Pen.fillRect(Rect(left + (gap/2), top + (gap/2.5), width - (gap * 1.5), height - (gap * 2.5)));
+                            // Non-accented clicks are dimmer
+                            currColor.alpha_(0.2);
+                            Pen.fillColor = currColor;
+                            Pen.addOval(localRect);
                         };
+                        Pen.fillStroke;
                     };
                 };
             };
@@ -159,6 +185,15 @@ window.view.keyDownAction_({ |view, char, modifiers, unicode, keycode|
     { (modifiers == 0) && (char == $s) } {
         "Stopping".postln;
         ~tempoClock.stop;
+        beatView.refresh;
+    }
+    { (modifiers == 0) && (keycode == 49) } {
+        "Toggling".postln;
+        if (beatView.animate) {
+            beatView.animate = false;
+        } {
+            beatView.animate = true;
+        };
         beatView.refresh;
     }
     { (modifiers == 0) && (keycode == 53) } {
