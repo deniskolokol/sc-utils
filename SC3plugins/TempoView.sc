@@ -19,11 +19,11 @@ TempoView {
     var <>accents, <view;
     var clock;
 
-    *new { arg parent, tempoClock, clicks, accents;
-        ^super.new.init(parent, tempoClock, clicks, accents)
+    *new { arg parent, tempoClock, clicks, accents, animate = true;
+        ^super.new.init(parent, tempoClock, clicks, accents, animate)
     }
 
-    init { arg parent, tempoClock, clicks, accents;
+    init { arg parent, tempoClock, clicks, accents, animate = true;
         clock = tempoClock;
         accents = accents ? Array.fill(clock.beatsPerBar, { Array.fill(clicks, 0) });
         view = UserView(parent, Rect(0, 0, parent.bounds.width, parent.bounds.height))
@@ -117,7 +117,7 @@ TempoView {
                     );
                 };
             });
-        view.animate = true;
+        view.animate = animate;
     }
 
     stop {

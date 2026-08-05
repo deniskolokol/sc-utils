@@ -35,10 +35,18 @@ p = Pbind(
     // \degree, Pseq([0, 2, 4, 5, 7, 9, 11, 12], inf),
 
     // Or, use \midinote directly for specific note numbers (e.g., 60 = Middle C)
-    \midinote, Pseq([71, 70, 67, 64, Rest(), Rest(), 67, 66, 64, 60, Rest(), Rest()], inf),
+    // \midinote, Pseq([71, 70, 67, 64, 67, 66, 64, 60], inf),
+    // \midinote, Pseq([36, 41], inf),
+    \midinote, Pseq(
+        [
+            48, 55, 50,
+            48, 55, 50,
+        ] ++ ([Pwrand([36, 44, 42], [0.7, 0.2, 0.1]), Prand([36, 44])] ! 5).flatten,
+    inf),
+    // \midinote, 36,
 
     // --- Performance Parameters ---
-    \dur, 0.25, // Duration between notes (quarter notes)
+    \dur, 0.15, // Duration between notes (quarter notes)
     \legato, 0.5, // Note length (0.5 = staccato, 1 = full duration)
     \amp, Pwhite(0.8, 1, inf) // Velocity (MIDI velocity mapped from amp)
 ).play;
@@ -49,6 +57,7 @@ p = Pbind(
 // communication, rendering the last note played indefinitely. Use the line
 // below instead.
 p.stop;
+
 
 
 
