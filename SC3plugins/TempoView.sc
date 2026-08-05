@@ -17,7 +17,20 @@
 
 TempoView {
     var <>accents, <view;
-    var clock;
+    var clock, parentView;
+    classvar <fontLabel, <colorBg, <colors, <margin, <gap;
+
+    *initClass {
+        fontLabel = Font("Menlo", 12);
+        colorBg = Color.new255(24, 24, 24);
+        colors = (
+            \beat: Color.gray(0.2),
+            \click: Color.gray(0.6),
+            \accent: Color.gray(0.8)
+        );
+        margin = 5;
+        gap = 5;
+    }
 
     *new { arg parent, tempoClock, clicks, accents, animate = true;
         ^super.new.init(parent, tempoClock, clicks, accents, animate)
@@ -25,31 +38,23 @@ TempoView {
 
     init { arg parent, tempoClock, clicks, accents, animate = true;
         clock = tempoClock;
+        parentView = parent;
         accents = accents ? Array.fill(clock.beatsPerBar, { Array.fill(clicks, 0) });
         view = UserView(parent, Rect(0, 0, parent.bounds.width, parent.bounds.height))
             .background_(Color.clear)
             .drawFunc_({ |usrView|
                 var left, top, width, height;
-                var margin = 5, gap = 5;
                 var widthBeat, localRect;
-                var colorBg = Color.new255(24, 24, 24);
                 var currColor = colorBg;
-                var fontLabel = Font("Menlo", 12);
-                var palette = QPalette.dark;
-                var colors = (
-                    \beat: Color.gray(0.2),
-                    \click: Color.gray(0.6),
-                    \accent: Color.gray(0.8)
-                );
 
-                var getLocalRect = { |left, top, height, width, gap|
+                var getLocalRect = { |left, top, height, width|
                     var localLeft, localTop, localWidth, localHeight;
 
                     localHeight = height - (gap * 2);
-                    localWidth = width - gap;
+                    localWidth = width - (gap * 2);
                     localHeight = min(localHeight, localWidth); // Make it a square
                     localWidth = localHeight; // Make it a square
-                    localLeft = left + ((width - localWidth) / 2); // Center horizontally
+                    localLeft = left + ((width - localWidth - gap) / 2); // Center horizontally
                     localTop = top + ((height - (gap * 2) - localHeight) / 2); // Center vertically
 
                     Rect(localLeft, localTop, localWidth, localHeight)
@@ -61,16 +66,21 @@ TempoView {
                     width = widthBeat / clicks - gap;
                     height = usrView.bounds.height - 20 - (margin * 4);
 
+                    // Visualize the current bar and beat
                     Pen.fillColor = colors[\accent];
                     Pen.stringAtPoint(
-                        format("Bar: %, Beat: %", clock.bar, clock.beatInBar),
-                        Point(margin*4, margin)
+                        format(
+                            "Bar: %, Beat: %",
+                            clock.bar,
+                            clock.beatInBar.round(0.001) + 1
+                        ),
+                        Point(80 + margin*4, margin)
                     );
 
                     Pen.strokeColor_(Color.gray(alpha: 0.5));
                     clock.beatsPerBar.do { |beat|
                         left = margin + (beat * (widthBeat + (2 * gap)));
-                        top = margin + 20; // Leave space for the label
+                        top = margin + 20; // Leave space for the label                        
 
                         // Draw the beat rectangles.
                         Pen.width = 1;
@@ -85,7 +95,7 @@ TempoView {
                             left = margin + (beat * (widthBeat + (2 * gap))) + (click * width) + (gap * (click + 1));
                             top = margin + 20 + gap;
 
-                            localRect = getLocalRect.(left, top, height, width, gap);
+                            localRect = getLocalRect.(left, top, height, width);
 
                             if (beat > clock.beatInBar.floor or:
                                     (beat == clock.beatInBar.floor and: 
@@ -118,6 +128,31 @@ TempoView {
                 };
             });
         view.animate = animate;
+        this.prAddAnimateControls;
+    }
+
+    prAddAnimateControls {
+        var labelRect, buttonRect, button;
+
+        labelRect = Rect(12, 4, 60, 18);
+        buttonRect = Rect(labelRect.right + 6, 4, 56, 18);
+
+        StaticText(view, labelRect)
+            .string_("Animate")
+            .font_(fontLabel)
+            .align_(\left);
+
+        button = Button(view, buttonRect)
+            .states_([
+                ["OFF", Color.white, Color.gray(0.25)],
+                ["ON", Color.black, Color.green(0.6)]
+            ])
+            .value_(view.animate.binaryValue)
+            .action_({ |btn|
+                view.animate = (btn.value == 1);
+            });
+
+        ^button;
     }
 
     stop {
