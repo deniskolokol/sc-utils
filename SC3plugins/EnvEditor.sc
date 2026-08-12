@@ -1,7 +1,7 @@
 (
 var win;
 var width = 800;
-var height = 400;
+var height = 450;
 
 var gap = 5, margin = 5;
 var paneTop, paneMain, paneRight, paneBottom;
@@ -10,6 +10,8 @@ var envView;
 var colorBg = Color.grey(0.15);
 var colorPane = Color.grey(0.2);
 var transparent = Color.grey(alpha:0.0);
+var fontControl = Font("Helvetica", 12);
+var fontLabel = Font("Helvetica", 10);
 
 var makePanel = { |parent, x, y, w, h, color|
     var panel = CompositeView(parent, Rect(x, y, w, h)).background_(color ? colorPane);
@@ -25,10 +27,10 @@ win.background_(colorBg);
     var innerW = width - (margin * 2);
     var innerH = height - (margin * 2);
     var stackH = innerH - (gap * 2);
-    var topH = (stackH * 0.1).floor;
-    var mainH = (stackH * 0.8).floor;
+    var topH = (stackH * 0.08).floor;
+    var mainH = (stackH * 0.84).floor;
     var bottomH = stackH - topH - mainH;
-    var mainW = ((innerW - gap) * 0.8).floor;
+    var mainW = ((innerW - gap) * 0.9).floor;
     var rightW = (innerW - mainW - gap).floor;
 
     paneTop = makePanel.(win, margin, margin, innerW, topH, colorPane);
@@ -39,7 +41,7 @@ win.background_(colorBg);
 
 // Top panel controls.
 EZPopUpMenu(paneTop,
-    Rect(margin, margin, paneTop.bounds.width * 0.35, 28),
+    Rect(margin, margin, paneTop.bounds.width * 0.35, paneTop.bounds.height * 0.8),
     "Presets",
     ["sine", "saw", "tri"],
     globalAction: { |menu| menu.value.postln },
@@ -63,13 +65,23 @@ EZPopUpMenu(paneTop,
 // Main panel: MasterEQ-inspired custom editor sketch with a centered zero line.
 {
     var selected = -1;
-    var envPoints = [
-        [0.0, 0.0],
-        [0.2, 0.85],
-        [0.45, -0.35],
-        [0.7, 0.5],
-        [1.0, 0.0]
-    ];
+
+    // Default env descriptor for testing the editor.
+    var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.0];
+    var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131];
+    var envCurves = [\sine, 2.071, 0, \sine, -4.617];
+
+    var envPoints;
+
+    var makeEnvPoints = { |levels, times|
+        var totalTime = times.sum;
+        levels.collect { |level, i|
+            var x = if(i == 0) { 0.0 } { times[0..(i - 1)].sum / totalTime };
+            [x, level.clip(-1.0, 1.0)]
+        }
+    };
+
+    envPoints = makeEnvPoints.(envLevels, envTimes);
 
     envView = UserView(paneMain, paneMain.bounds.insetBy(margin, margin))
         .resize_(5)
@@ -213,9 +225,42 @@ EZPopUpMenu(paneTop,
     envView;
 }.value;
 
-// Right/bottom placeholders remain as visual separators.
-StaticText(paneRight, paneRight.bounds.insetBy(margin, margin)).string_("RIGHT").align_(\center).stringColor_(Color.white);
-StaticText(paneBottom, paneBottom.bounds.insetBy(margin, margin)).string_("BOTTOM").align_(\center).stringColor_(Color.white);
+// Right panel editor controls.
+{
+    var knobWidth = 65;
+    var knobHeight = 85;
+    var knob = { |par, label, spec, action, initVal|
+        if (initVal.isNil) { initVal = spec.default };
+        EZKnob(par, knobWidth@knobHeight, " " ++ label.asString, spec,
+            { |ez| action.(ez.value) },
+            initVal, layout: \vert2
+        )
+        .font_(fontControl)
+        .setColors(
+            stringColor:Color.white,
+            numBackground:Color.grey,
+            knobColors:[Color.grey(0.1), Color.red, Color.white, Color.red],
+            numNormalColor:Color.yellow,
+        )
+    };
+
+    StaticText(paneRight, (paneRight.bounds.width - (gap*2))@24)
+        .string_("Edit segment")
+        .align_(\left)
+        .stringColor_(Color.white)
+        .font_(fontLabel);
+
+    knob.(paneRight, "Level", [-1.0, 1.0].asSpec, { |ez| }, 0.0);
+    knob.(paneRight, "Dur", [0.0, 2.0].asSpec, { |ez| }, 1.0);
+    knob.(paneRight, "Slope", [-5.0, 5.0].asSpec, { |ez| }, 0.0);
+
+    Button(paneRight, 30@15)
+        .states_([
+            ["sine", Color.white, Color.grey(0.5)]
+        ])
+        .font_(Font("Helvetica", 11))
+        .action_({ |bt| bt.value.postln });
+}.value;
 
 win.front;
 
