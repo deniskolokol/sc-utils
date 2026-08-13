@@ -11,6 +11,7 @@ var colorBg = Color.grey(0.15);
 var colorPane = Color.grey(0.2);
 var transparent = Color.grey(alpha:0.0);
 var fontControl = Font("Helvetica", 12);
+var fontButton = Font("Helvetica", 11);
 var fontLabel = Font("Helvetica", 10);
 
 var makePanel = { |parent, x, y, w, h, color|
@@ -88,44 +89,85 @@ EZPopUpMenu(paneTop,
         .focusColor_(Color.clear);
 
     envView.drawFunc = { |vw|
-        var b = vw.bounds.moveTo(0, 0);
-        var zeroY = b.height * 0.5;
+        var origin = vw.bounds.moveTo(0, 0);
+        var zeroY = origin.height * 0.5;
         var minVal = -1.0;
         var maxVal = 1.0;
         var step = 0.25;
         var pts;
+        var prevPt;
+        var delta, deltaLen;
+        var perpendicular;
+        var amplitude;
+        var cPoint1, cPoint2;
+
         envPoints[0][1] = 0.0;
         envPoints[envPoints.size - 1][1] = 0.0;
         envPoints[0][0] = 0.0;
         envPoints[envPoints.size - 1][0] = 1.0;
         pts = envPoints.collect { |pt|
             Point(
-                pt[0].linlin(0.0, 1.0, 0, b.width),
-                pt[1].linlin(-1.0, 1.0, b.height, 0, \none)
+                pt[0].linlin(0.0, 1.0, 0, origin.width),
+                pt[1].linlin(-1.0, 1.0, origin.height, 0, \none)
             )
         };
 
         Pen.color = Color.grey(0.1);
-        Pen.fillRect(b);
+        Pen.fillRect(origin);
 
         Pen.color = Color.grey(0.35).alpha_(0.35);
         ((maxVal - minVal) / step + 1).asInteger.do { |i|
             var v = minVal + (i * step);
-            var y = v.linlin(minVal, maxVal, b.height, 0, \none);
-            Pen.line(0@y, b.width@y);
+            var y = v.linlin(minVal, maxVal, origin.height, 0, \none);
+            Pen.line(0@y, origin.width@y);
             Pen.stringAtPoint(v.asStringPrec(2), Point(4, y + 2));
         };
         Pen.stroke;
 
         Pen.color = Color.white.alpha_(0.75);
-        Pen.line(0@zeroY, b.width@zeroY);
+        Pen.line(0@zeroY, origin.width@zeroY);
         Pen.stroke;
 
         Pen.color = Color.red.alpha_(0.25);
-        Pen.moveTo(Point(0, zeroY));
-        Pen.lineTo(pts[0]);
-        pts[1..].do { |pt| Pen.lineTo(pt); };
-        Pen.lineTo(Point(b.width, zeroY));
+        // Pen.moveTo(Point(0, zeroY));
+        // Pen.lineTo(pts[0]);
+        Pen.moveTo(pts[0]);
+        pts[1..].do { |pt, i|
+            prevPt = pts[i];
+            case
+            { envCurves[i] == \sine } {
+                // Calculate the vector from start to end point
+                delta = pt - prevPt;
+
+                // Calculate perpendicular vector (rotated 90 degrees) and normalize it
+                deltaLen = delta.dist(Point(0, 0));
+                perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
+
+                // Define wave amplitude (height of the sine wave)
+                amplitude = deltaLen * 0.15; // Adjust multiplier to change wave height
+
+                // Calculate control points
+                // Control point 1: 1/3 along the line, offset perpendicular
+                cPoint1 = prevPt + (delta * 0.33) + (perpendicular * amplitude);
+
+                // Control point 2: 2/3 along the line, offset opposite perpendicular
+                cPoint2 = pt - (delta * 0.33) - (perpendicular * amplitude);
+
+                Pen.curveTo(pt, cPoint1, cPoint2);
+                // Pen.lineTo(pt)
+            }
+            { envCurves[i] > 0.0 } {
+                Pen.lineTo(pt)
+            }
+            { envCurves[i] < 0.0 } {
+                Pen.lineTo(pt)
+            }
+            { 
+                // default is a straight line
+                Pen.lineTo(pt)
+            }
+        };
+        Pen.lineTo(Point(origin.width, zeroY));
         Pen.lineTo(Point(0, zeroY));
         Pen.fill;
 
@@ -157,13 +199,13 @@ EZPopUpMenu(paneTop,
                     // negative values: below the point
                     labelY = pt.y + 8;
                     labelPos = Point(pt.x, labelY);
-                    if(pt.y > (b.height - 20)) {
+                    if(pt.y > (origin.height - 20)) {
                         // keep clear of the bottom border
                         labelPos = Point(pt.x + 12, pt.y - 12);
                     };
                 };
 
-                if(pt.x > (b.width - 40)) {
+                if(pt.x > (origin.width - 40)) {
                     // keep the label inside the right edge
                     labelPos = Point(pt.x - 27, labelPos.y);
                 } {
@@ -181,11 +223,11 @@ EZPopUpMenu(paneTop,
     };
 
     envView.mouseDownAction = { |vw, x, y, mod|
-        var b = vw.bounds.moveTo(0, 0);
+        var origin = vw.bounds.moveTo(0, 0);
         var pts = envPoints.collect { |pt|
             Point(
-                pt[0].linlin(0.0, 1.0, 0, b.width),
-                pt[1].linlin(-1.0, 1.0, b.height, 0, \none)
+                pt[0].linlin(0.0, 1.0, 0, origin.width),
+                pt[1].linlin(-1.0, 1.0, origin.height, 0, \none)
             )
         };
 
@@ -202,9 +244,9 @@ EZPopUpMenu(paneTop,
 
     envView.mouseMoveAction = { |vw, x, y, mod|
         if(selected != -1) {
-            var b = vw.bounds.moveTo(0, 0);
-            envPoints[selected][0] = x.linlin(0, b.width, 0.0, 1.0).clip(0.0, 1.0).round(0.01);
-            envPoints[selected][1] = y.linlin(0, b.height, 1.0, -1.0).clip(-1.0, 1.0).round(0.01);
+            var origin = vw.bounds.moveTo(0, 0);
+            envPoints[selected][0] = x.linlin(0, origin.width, 0.0, 1.0).clip(0.0, 1.0).round(0.01);
+            envPoints[selected][1] = y.linlin(0, origin.height, 1.0, -1.0).clip(-1.0, 1.0).round(0.01);
             if(selected == 0) {
                 envPoints[0][0] = 0.0;
                 envPoints[0][1] = 0.0;
@@ -258,8 +300,49 @@ EZPopUpMenu(paneTop,
         .states_([
             ["sine", Color.white, Color.grey(0.5)]
         ])
-        .font_(Font("Helvetica", 11))
+        .font_(fontButton)
         .action_({ |bt| bt.value.postln });
+}.value;
+
+// Bottom panel controls: navigation buttons and edit buttons.
+{
+    var btnSize = 24;
+    var btnWidth = 50;
+
+    // Left-aligned navigation buttons: first, previous, next, last
+    Button(paneBottom, btnSize@btnSize)
+        .states_([["⏮", Color.white, Color.grey(0.5)]])
+        .font_(fontButton)
+        .action_({ |bt| "first".postln });
+
+    Button(paneBottom, btnSize@btnSize)
+        .states_([["◀", Color.white, Color.grey(0.5)]])
+        .font_(fontButton)
+        .action_({ |bt| "previous".postln });
+
+    Button(paneBottom, btnSize@btnSize)
+        .states_([["▶", Color.white, Color.grey(0.5)]])
+        .font_(fontButton)
+        .action_({ |bt| "next".postln });
+
+    Button(paneBottom, btnSize@btnSize)
+        .states_([["⏭", Color.white, Color.grey(0.5)]])
+        .font_(fontButton)
+        .action_({ |bt| "last".postln });
+
+    // 
+    makePanel.(paneBottom, (btnSize * 4) + (gap * 3) + margin, margin, btnSize * 3, btnSize, transparent);
+
+    // Right-aligned edit buttons: add and delete
+    Button(paneBottom, btnWidth@btnSize)
+        .states_([["add", Color.white, Color.grey(0.5)]])
+        .font_(fontButton)
+        .action_({ |bt| "add".postln });
+
+    Button(paneBottom, btnWidth@btnSize)
+        .states_([["delete", Color.white, Color.grey(0.5)]])
+        .font_(fontButton)
+        .action_({ |bt| "delete".postln });
 }.value;
 
 win.front;
