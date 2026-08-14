@@ -68,9 +68,9 @@ EZPopUpMenu(paneTop,
     var selected = -1;
 
     // Default env descriptor for testing the editor.
-    var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.0];
-    var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131];
-    var envCurves = [\sine, 2.071, 0, \sine, -4.617];
+    var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
+    var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
+    var envCurves = [\sine, 2.071, \sine, \sine, 0, -4.617];
 
     var envPoints;
 
@@ -99,6 +99,8 @@ EZPopUpMenu(paneTop,
         var delta, deltaLen;
         var perpendicular;
         var amplitude;
+        var amplitudeScale;
+        var controlPointRatio;
         var cPoint1, cPoint2;
 
         envPoints[0][1] = 0.0;
@@ -128,36 +130,59 @@ EZPopUpMenu(paneTop,
         Pen.line(0@zeroY, origin.width@zeroY);
         Pen.stroke;
 
-        Pen.color = Color.red.alpha_(0.25);
-        // Pen.moveTo(Point(0, zeroY));
-        // Pen.lineTo(pts[0]);
+        Pen.color = Color.red.alpha_(0.85);
         Pen.moveTo(pts[0]);
         pts[1..].do { |pt, i|
             prevPt = pts[i];
+            postf("\ni: %\nenvCurves[i]: %\n", i, envCurves[i]);
             case
             { envCurves[i] == \sine } {
                 // Calculate the vector from start to end point
                 delta = pt - prevPt;
+
+                postf("prevPt: %\npt: %\npt.y-prevPt.y: %\n", prevPt, pt, pt.y - prevPt.y);
 
                 // Calculate perpendicular vector (rotated 90 degrees) and normalize it
                 deltaLen = delta.dist(Point(0, 0));
                 perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
 
                 // Define wave amplitude (height of the sine wave)
-                amplitude = deltaLen * 0.15; // Adjust multiplier to change wave height
+                amplitude = deltaLen * 0.1; // Adjust multiplier to change wave height
+                amplitudeScale = perpendicular * amplitude;
+
+                // If sine crosses the X-axis, change amplitudeScale sign to preserve the wave direction
+                if ((pt.y - prevPt.y) > 0) { amplitudeScale = amplitudeScale.neg };
 
                 // Calculate control points
-                // Control point 1: 1/3 along the line, offset perpendicular
-                cPoint1 = prevPt + (delta * 0.33) + (perpendicular * amplitude);
+                cPoint1 = prevPt + (delta * 0.33) + amplitudeScale;
 
                 // Control point 2: 2/3 along the line, offset opposite perpendicular
-                cPoint2 = pt - (delta * 0.33) - (perpendicular * amplitude);
+                cPoint2 = pt - (delta * 0.33) - amplitudeScale;
 
                 Pen.curveTo(pt, cPoint1, cPoint2);
-                // Pen.lineTo(pt)
             }
             { envCurves[i] > 0.0 } {
-                Pen.lineTo(pt)
+                // Calculate the vector from start to end point
+                delta = pt - prevPt;
+
+                // Calculate the magnitude of the vector
+                deltaLen = delta.dist(Point(0, 0));
+
+                // Calculate perpendicular vector (rotated 90 degrees) and normalize it
+                perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
+
+                // Define wave amplitude (height of the curve)
+                amplitude = deltaLen * 0.08; // Adjust multiplier to change curve height
+
+                // Use envCurve to modulate control point positions and amplitude
+                controlPointRatio = envCurves[i].reciprocal * 0.33;  // Position scaling
+                amplitudeScale = envCurves[i];  // Amplitude scaling based on power curve
+
+                // Calculate control points for power curve
+                cPoint1 = prevPt + (delta * controlPointRatio) + (perpendicular * amplitude * amplitudeScale);
+                cPoint2 = pt - (delta * controlPointRatio) + (perpendicular * amplitude * amplitudeScale);
+
+                Pen.curveTo(pt, cPoint1, cPoint2)
             }
             { envCurves[i] < 0.0 } {
                 Pen.lineTo(pt)
@@ -169,12 +194,13 @@ EZPopUpMenu(paneTop,
         };
         Pen.lineTo(Point(origin.width, zeroY));
         Pen.lineTo(Point(0, zeroY));
-        Pen.fill;
-
-        Pen.color = Color.red.alpha_(0.85);
-        Pen.moveTo(pts[0]);
-        pts[1..].do { |pt| Pen.lineTo(pt); };
         Pen.stroke;
+        //Pen.fill;
+
+        // Pen.color = Color.red.alpha_(0.25);
+        // Pen.moveTo(pts[0]);
+        // pts[1..].do { |pt| Pen.lineTo(pt); };
+        // Pen.stroke;
 
         pts.do { |pt, i|
             var radius = if(selected == i) { 6 } { 4 };
