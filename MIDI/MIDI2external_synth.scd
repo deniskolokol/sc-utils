@@ -12,7 +12,13 @@ MIDIClient.destinations.do(_.postln);
 // Create the MIDIOut object.
 // Replace the strings below with the exact names from your MIDI destination list.
 // For example: ~ifaceMIDIOut = MIDIOut.newByName("Scarlett 2i2 MIDI", "Scarlett 2i2 MIDI Port");
-~ifaceMIDIOut = MIDIOut.newByName("Studio 1824c", "Studio 1824c");
+//
+// Use this for the setup in which MIDI cable is connected from the audio interface
+// to the external synth.
+// ~ifaceMIDIOut = MIDIOut.newByName("Studio 1824c", "Studio 1824c");
+
+// Use this if you are using a USB cable to connect directly to the external synth.
+~ifaceMIDIOut = MIDIOut.newByName("Neutron", "Neutron");
 
 // Optional: Set latency to match your server for better sync
 ~ifaceMIDIOut.latency = Server.default.latency;

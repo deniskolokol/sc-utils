@@ -1,7 +1,7 @@
 (
 var win;
-var width = 800;
-var height = 450;
+var width = 850;
+var height = 420;
 
 var gap = 5, margin = 5;
 var paneTop, paneMain, paneRight, paneBottom;
@@ -65,12 +65,82 @@ EZPopUpMenu(paneTop,
 
 // Main panel: MasterEQ-inspired custom editor sketch with a centered zero line.
 {
+    // Functions
+    var bezierConcave = { |pointFro, pointTo, ampScale|
+        // Calculate the vector from start to end point
+        var delta = pointTo - pointFro;
+
+        // Calculate the magnitude of the vector
+        var deltaLen = delta.dist(Point(0, 0));
+
+        // Calculate perpendicular vector (rotated 90 degrees) and normalize it
+        var perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
+
+        // Define wave amplitude (height of the curve)
+        var amplitude = deltaLen * 0.03; // Adjust multiplier to change curve height
+
+        // Calculate and return control points for power curve
+        var ctlPt1 = pointFro - (delta / ampScale) - (perpendicular * amplitude * ampScale);
+        var ctlPt2 = pointTo + (delta / ampScale) - (perpendicular * amplitude * ampScale);
+        
+        [ctlPt1, ctlPt2]
+    };
+
+    var getBezierCtrlPoint = { |pointFro, pointTo, ampScale, time|
+        var midPoint, direction, perpendicular, controlPoint, totalDistance;
+        var isConvex = true;
+        var curveDirectionModifier;
+
+        // 1. Calculate linear distance between endpoints
+        totalDistance = pointFro.dist(pointTo);
+
+        // 2. Shift baseline anchor position based on 'time'
+        midPoint = pointFro.blend(pointTo, time);
+
+        // 3. Get the baseline direction vector
+        direction = pointTo - pointFro;
+
+        // 4. Base perpendicular vector (oriented for screen inverted-Y space)
+        perpendicular = Point(direction.y.neg, direction.x);
+
+        // 5. Normalize vector safely
+        if (totalDistance > 0) {
+            perpendicular = perpendicular / totalDistance;
+        };
+
+        // 6. Apply skew calculation to maintain the asymmetric peak
+        if (time != 0.5) {
+            var skewDirection = (pointFro - midPoint);
+            if (skewDirection.rho > 0) {
+                perpendicular = perpendicular + (skewDirection / totalDistance * 0.5);
+            };
+        };
+
+        // 7. Explicitly evaluate convexity rules using robust method-style .if calls
+        // (Inverted Y: "above" means smaller Y value)
+        isConvex = (ampScale < 0).if({
+            pointFro.y > pointTo.y
+        }, {
+            pointFro.y < pointTo.y
+        });
+
+        // 8. Determine directional multiplier (convex = 1, concave = -1)
+        curveDirectionModifier = isConvex.if({ 1 }, { -1 });
+
+        // 9. Calculate final control point using absolute amplitude scale
+        controlPoint = midPoint + (perpendicular * (ampScale * 0.33).abs * curveDirectionModifier * (totalDistance * 0.25));
+
+        // 10. Force return of the Point instance to avoid nil bugs downstream
+        controlPoint;
+    };
+
+
     var selected = -1;
 
     // Default env descriptor for testing the editor.
     var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
     var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
-    var envCurves = [\sine, 2.071, \sine, \sine, 0, -4.617];
+    var envCurves = [\sine, 2.071, \sine, \sine, 0, -3.617];
 
     var envPoints;
 
@@ -101,6 +171,7 @@ EZPopUpMenu(paneTop,
         var amplitude;
         var amplitudeScale;
         var controlPointRatio;
+        var cPoint;
         var cPoint1, cPoint2;
 
         envPoints[0][1] = 0.0;
@@ -130,17 +201,14 @@ EZPopUpMenu(paneTop,
         Pen.line(0@zeroY, origin.width@zeroY);
         Pen.stroke;
 
-        Pen.color = Color.red.alpha_(0.85);
+        Pen.color = Color.red.alpha_(0.25);
         Pen.moveTo(pts[0]);
         pts[1..].do { |pt, i|
             prevPt = pts[i];
-            postf("\ni: %\nenvCurves[i]: %\n", i, envCurves[i]);
             case
             { envCurves[i] == \sine } {
                 // Calculate the vector from start to end point
                 delta = pt - prevPt;
-
-                postf("prevPt: %\npt: %\npt.y-prevPt.y: %\n", prevPt, pt, pt.y - prevPt.y);
 
                 // Calculate perpendicular vector (rotated 90 degrees) and normalize it
                 deltaLen = delta.dist(Point(0, 0));
@@ -161,31 +229,9 @@ EZPopUpMenu(paneTop,
 
                 Pen.curveTo(pt, cPoint1, cPoint2);
             }
-            { envCurves[i] > 0.0 } {
-                // Calculate the vector from start to end point
-                delta = pt - prevPt;
-
-                // Calculate the magnitude of the vector
-                deltaLen = delta.dist(Point(0, 0));
-
-                // Calculate perpendicular vector (rotated 90 degrees) and normalize it
-                perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
-
-                // Define wave amplitude (height of the curve)
-                amplitude = deltaLen * 0.08; // Adjust multiplier to change curve height
-
-                // Use envCurve to modulate control point positions and amplitude
-                controlPointRatio = envCurves[i].reciprocal * 0.33;  // Position scaling
-                amplitudeScale = envCurves[i];  // Amplitude scaling based on power curve
-
-                // Calculate control points for power curve
-                cPoint1 = prevPt + (delta * controlPointRatio) + (perpendicular * amplitude * amplitudeScale);
-                cPoint2 = pt - (delta * controlPointRatio) + (perpendicular * amplitude * amplitudeScale);
-
-                Pen.curveTo(pt, cPoint1, cPoint2)
-            }
-            { envCurves[i] < 0.0 } {
-                Pen.lineTo(pt)
+            { envCurves[i] != 0.0 } {
+                cPoint = getBezierCtrlPoint.(prevPt, pt, envCurves[i], 0.9);
+                Pen.quadCurveTo(pt, cPoint);
             }
             { 
                 // default is a straight line
@@ -194,13 +240,16 @@ EZPopUpMenu(paneTop,
         };
         Pen.lineTo(Point(origin.width, zeroY));
         Pen.lineTo(Point(0, zeroY));
-        Pen.stroke;
-        //Pen.fill;
+        Pen.fill;
 
-        // Pen.color = Color.red.alpha_(0.25);
-        // Pen.moveTo(pts[0]);
-        // pts[1..].do { |pt| Pen.lineTo(pt); };
-        // Pen.stroke;
+        // WARNING: temporary! Remove after testing curves
+        Pen.color = Color.white;
+        Pen.fillOval(Rect.aboutPoint(cPoint, 5, 5));
+
+        Pen.color = Color.red.alpha_(0.85);
+        Pen.moveTo(pts[0]);
+        pts[1..].do { |pt| Pen.lineTo(pt); };
+        Pen.stroke;
 
         pts.do { |pt, i|
             var radius = if(selected == i) { 6 } { 4 };
