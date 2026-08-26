@@ -1,7 +1,7 @@
 (
 var win;
 var width = 850;
-var height = 420;
+var height = 850;
 
 var gap = 5, margin = 5;
 var paneTop, paneMain, paneRight, paneBottom;
@@ -9,16 +9,26 @@ var envView;
 
 var colorBg = Color.grey(0.15);
 var colorPane = Color.grey(0.2);
+var drawColor = Color.grey(0.1);
 var transparent = Color.grey(alpha:0.0);
-var fontControl = Font("Helvetica", 12);
+var fontHeader = Font("Helvetica", 14);
+var fontLabel = Font("Helvetica", 12);
+var fontControl = Font("Helvetica", 10);
 var fontButton = Font("Helvetica", 11);
-var fontLabel = Font("Helvetica", 10);
 
 var makePanel = { |parent, x, y, w, h, color|
     var panel = CompositeView(parent, Rect(x, y, w, h)).background_(color ? colorPane);
     panel.decorator = FlowLayout(panel.bounds, margin@margin, gap@gap);
     panel;
 };
+
+var controlStrip;
+
+// Default env descriptor for testing the editor.
+var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
+var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
+var envCurves = [\sine, 2.071, \sine, \sine, 0, -3.617];
+
 
 win = Window("EnvEditor", Rect(0, 0, width, height), resizable: false);
 win.background_(colorBg);
@@ -28,8 +38,8 @@ win.background_(colorBg);
     var innerW = width - (margin * 2);
     var innerH = height - (margin * 2);
     var stackH = innerH - (gap * 2);
-    var topH = (stackH * 0.08).floor;
-    var mainH = (stackH * 0.84).floor;
+    var topH = (stackH * 0.04).floor;
+    var mainH = (stackH * 0.5).floor;
     var bottomH = stackH - topH - mainH;
     var mainW = ((innerW - gap) * 0.9).floor;
     var rightW = (innerW - mainW - gap).floor;
@@ -41,27 +51,29 @@ win.background_(colorBg);
 }.value;
 
 // Top panel controls.
-EZPopUpMenu(paneTop,
-    Rect(margin, margin, paneTop.bounds.width * 0.35, paneTop.bounds.height * 0.8),
-    "Presets",
-    ["sine", "saw", "tri"],
-    globalAction: { |menu| menu.value.postln },
-    initVal: 0,
-    labelWidth: 60
-).setColors(
-    stringColor: Color.white,
-    menuStringColor: Color.white,
-    menuBackground: colorBg,
-    background: transparent,
-).font_(Font("Monospace", 12));
+{
+    EZPopUpMenu(paneTop,
+        Rect(margin, margin, paneTop.bounds.width * 0.35, paneTop.bounds.height * 0.8),
+        "Presets",
+        ["sine", "saw", "tri"],
+        globalAction: { |menu| menu.value.postln },
+        initVal: 0,
+        labelWidth: 60
+    ).setColors(
+        stringColor: Color.white,
+        menuStringColor: Color.white,
+        menuBackground: colorBg,
+        background: transparent,
+    ).font_(Font("Monospace", 12));
 
-["Override", "Save as", "New", "New rand"].do { |label|
-    Button(paneTop,
-        Rect(0, 0, paneTop.bounds.width * 0.12, paneTop.bounds.height * 0.8)
-    ).states_([
-        [label, Color.white, Color.grey(0.5)]
-    ]).font_(Font("Helvetica", 11)).action_({ |bt| bt.value.postln });
-};
+    ["Override", "Save as", "New", "New rand"].do { |label|
+        Button(paneTop,
+            Rect(0, 0, paneTop.bounds.width * 0.12, paneTop.bounds.height * 0.8)
+        ).states_([
+            [label, Color.white, Color.grey(0.5)]
+        ]).font_(Font("Helvetica", 11)).action_({ |bt| bt.value.postln });
+    };
+}.value;
 
 // Main panel: MasterEQ-inspired custom editor sketch with a centered zero line.
 {
@@ -136,14 +148,7 @@ EZPopUpMenu(paneTop,
 
 
     var selected = -1;
-
-    // Default env descriptor for testing the editor.
-    var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
-    var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
-    var envCurves = [\sine, 2.071, \sine, \sine, 0, -3.617];
-
     var envPoints;
-
     var makeEnvPoints = { |levels, times|
         var totalTime = times.sum;
         levels.collect { |level, i|
@@ -342,10 +347,32 @@ EZPopUpMenu(paneTop,
     envView;
 }.value;
 
-// Right panel editor controls.
+
+// Labels for control elements (curve, duration, slope, etc.)
 {
+    var labelCtrl = { |parent, label|
+        StaticText(parent, 80@(85-(gap*2)))
+            .string_("  " ++ label.asString)
+            .align_(\left)
+            .stringColor_(Color.white)
+            .background_(colorBg)
+            .font_(fontHeader);
+    };
+
+    var labelCtrlPanel = makePanel.(paneBottom, 0, 0, 90, paneBottom.bounds.height-(2*margin), colorPane);
+
+    labelCtrl.(labelCtrlPanel, "Level");
+    labelCtrl.(labelCtrlPanel, "Duration");
+    labelCtrl.(labelCtrlPanel, "Slope");
+    labelCtrl.(labelCtrlPanel, "Standard");
+}.value;
+
+
+// Control strip.
+controlStrip = { |index, parent|
     var knobWidth = 65;
     var knobHeight = 85;
+    var knobLevel, knobTime, knobCurve, pumCurve;
     var knob = { |par, label, spec, action, initVal|
         if (initVal.isNil) { initVal = spec.default };
         EZKnob(par, knobWidth@knobHeight, " " ++ label.asString, spec,
@@ -361,64 +388,106 @@ EZPopUpMenu(paneTop,
         )
     };
 
-    StaticText(paneRight, (paneRight.bounds.width - (gap*2))@24)
-        .string_("Edit segment")
-        .align_(\left)
+    // Index label for the current envelope point.
+    StaticText(parent, (parent.bounds.width - 30 - (2*gap))@26)
+        .string_((index+1).asString.padLeft(2, string: "0"))
+        .align_(\center)
         .stringColor_(Color.white)
-        .font_(fontLabel);
+        .background_(drawColor)
+        .font_(fontHeader);
 
-    knob.(paneRight, "Level", [-1.0, 1.0].asSpec, { |ez| }, 0.0);
-    knob.(paneRight, "Dur", [0.0, 2.0].asSpec, { |ez| }, 1.0);
-    knob.(paneRight, "Slope", [-5.0, 5.0].asSpec, { |ez| }, 0.0);
-
-    Button(paneRight, 30@15)
-        .states_([
-            ["sine", Color.white, Color.grey(0.5)]
-        ])
+    // Delete segment.
+    Button(parent, 23@23)
+        .states_([["❌", Color.red, drawColor]])
         .font_(fontButton)
-        .action_({ |bt| bt.value.postln });
-}.value;
+        .action_({ |bt| "remove".postln });
 
-// Bottom panel controls: navigation buttons and edit buttons.
+    knobLevel = knob.(parent, "Level", [-1.0, 1.0].asSpec, { |ez| }, envLevels[index+1]);
+    knobTime = knob.(parent, "Dur", [0.0, 2.0].asSpec, { |ez| }, envTimes[index]);
+    knobCurve = knob.(parent, "Slope", [-5.0, 5.0].asSpec, { |ez| }, 0.0);
+
+    // Standard curves (mutually exclusive with slope).
+    pumCurve = EZPopUpMenu(parent,
+        (parent.bounds.width - (margin*2))@18,
+        items: ['..', \sine, \squared, \cubed, \exp, \exponential, \hold, \step, \welch],
+        globalAction: { |menu| menu.value.postln },
+        initVal: 0,
+        labelWidth: 60
+    ).setColors(
+        stringColor: Color.white,
+        menuStringColor: Color.white,
+        menuBackground: colorBg,
+        background: transparent,
+    ).font_(Font("Monospace", 12));
+
+    if ( envCurves[index].isFloat ) {
+        knobCurve.value_(envCurves[index]);
+        knobCurve.enabled_(true)
+    } {
+        knobCurve.enabled_(false)
+    };
+};
+
+// bookmark
+// populate a bottom area by this
+controlStrip.value(5, paneRight);
+
+// Scrolling area for controls of the envelope segments.
 {
-    var btnSize = 24;
-    var btnWidth = 50;
+    var ctrlStripWidth = 84;
+    var compWidth = (envTimes.size * ctrlStripWidth) + ((envTimes.size - 1) * gap) + (margin * 2);
+    var scroll = ScrollView(paneBottom, Rect(0, 0, paneBottom.bounds.width-105, paneBottom.bounds.height-(margin*2)))
+        .background_(colorPane);
+    var comp = CompositeView(scroll, Rect(0, 0, compWidth, scroll.bounds.height)); // 'canvas' is this big
 
-    // Left-aligned navigation buttons: first, previous, next, last
-    Button(paneBottom, btnSize@btnSize)
-        .states_([["⏮", Color.white, Color.grey(0.5)]])
-        .font_(fontButton)
-        .action_({ |bt| "first".postln });
-
-    Button(paneBottom, btnSize@btnSize)
-        .states_([["◀", Color.white, Color.grey(0.5)]])
-        .font_(fontButton)
-        .action_({ |bt| "previous".postln });
-
-    Button(paneBottom, btnSize@btnSize)
-        .states_([["▶", Color.white, Color.grey(0.5)]])
-        .font_(fontButton)
-        .action_({ |bt| "next".postln });
-
-    Button(paneBottom, btnSize@btnSize)
-        .states_([["⏭", Color.white, Color.grey(0.5)]])
-        .font_(fontButton)
-        .action_({ |bt| "last".postln });
-
-    // 
-    makePanel.(paneBottom, (btnSize * 4) + (gap * 3) + margin, margin, btnSize * 3, btnSize, transparent);
-
-    // Right-aligned edit buttons: add and delete
-    Button(paneBottom, btnWidth@btnSize)
-        .states_([["add", Color.white, Color.grey(0.5)]])
-        .font_(fontButton)
-        .action_({ |bt| "add".postln });
-
-    Button(paneBottom, btnWidth@btnSize)
-        .states_([["delete", Color.white, Color.grey(0.5)]])
-        .font_(fontButton)
-        .action_({ |bt| "delete".postln });
+    comp.decorator = FlowLayout(comp.bounds); // now we can use a decorator
+    envTimes.do { |value, i|
+        var pane = makePanel.(comp, 0, 0, 80, comp.bounds.height-(margin*2), colorBg);
+        controlStrip.value(i, pane);
+    }
 }.value;
+
+// TODO: transfer necessary elements and remove afterwards
+//
+// // Bottom panel controls: navigation buttons and edit buttons.
+// {
+//     var btnSize = 24;
+//     var btnWidth = 50;
+
+//     // Left-aligned navigation buttons: first, previous, next, last
+//     Button(paneBottom, btnSize@btnSize)
+//         .states_([["⏮", Color.white, Color.grey(0.5)]])
+//         .font_(fontButton)
+//         .action_({ |bt| "first".postln });
+
+//     Button(paneBottom, btnSize@btnSize)
+//         .states_([["◀", Color.white, Color.grey(0.5)]])
+//         .font_(fontButton)
+//         .action_({ |bt| "previous".postln });
+
+//     Button(paneBottom, btnSize@btnSize)
+//         .states_([["▶", Color.white, Color.grey(0.5)]])
+//         .font_(fontButton)
+//         .action_({ |bt| "next".postln });
+
+//     Button(paneBottom, btnSize@btnSize)
+//         .states_([["⏭", Color.white, Color.grey(0.5)]])
+//         .font_(fontButton)
+//         .action_({ |bt| "last".postln });
+
+//     // 
+//     makePanel.(paneBottom, (btnSize * 4) + (gap * 3) + margin, margin, btnSize * 3, btnSize, transparent);
+
+//     Button(paneBottom, btnWidth@btnSize)
+//         .states_([["add", Color.white, Color.grey(0.5)]])
+//         .font_(fontButton)
+//         .action_({ |bt| "add".postln });
+
+//     Button(paneBottom, btnWidth@btnSize)
+//         .states_([["delete", Color.white, Color.grey(0.5)]])
+//         .font_(fontButton)
+//         .action_({ |bt| "delete".postln });
+// }.value;
 
 win.front;
 
