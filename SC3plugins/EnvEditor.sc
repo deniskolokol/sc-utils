@@ -28,7 +28,7 @@ var controlStrip;
 var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
 var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
 var envCurves = [\sine, 2.071, \sine, \sine, 0, -3.617];
-
+var env = Env(envLevels, envTimes, envCurves);
 
 win = Window("EnvEditor", Rect(0, 0, width, height), resizable: false);
 win.background_(colorBg);
@@ -75,285 +75,37 @@ win.background_(colorBg);
     };
 }.value;
 
-// Main panel: MasterEQ-inspired custom editor sketch with a centered zero line.
+// Main panel: Plotter
 {
-    // Functions
-    var bezierConcave = { |pointFro, pointTo, ampScale|
-        // Calculate the vector from start to end point
-        var delta = pointTo - pointFro;
-
-        // Calculate the magnitude of the vector
-        var deltaLen = delta.dist(Point(0, 0));
-
-        // Calculate perpendicular vector (rotated 90 degrees) and normalize it
-        var perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
-
-        // Define wave amplitude (height of the curve)
-        var amplitude = deltaLen * 0.03; // Adjust multiplier to change curve height
-
-        // Calculate and return control points for power curve
-        var ctlPt1 = pointFro - (delta / ampScale) - (perpendicular * amplitude * ampScale);
-        var ctlPt2 = pointTo + (delta / ampScale) - (perpendicular * amplitude * ampScale);
-        
-        [ctlPt1, ctlPt2]
-    };
-
-    var getBezierCtrlPoint = { |pointFro, pointTo, ampScale, time|
-        var midPoint, direction, perpendicular, controlPoint, totalDistance;
-        var isConvex = true;
-        var curveDirectionModifier;
-
-        // 1. Calculate linear distance between endpoints
-        totalDistance = pointFro.dist(pointTo);
-
-        // 2. Shift baseline anchor position based on 'time'
-        midPoint = pointFro.blend(pointTo, time);
-
-        // 3. Get the baseline direction vector
-        direction = pointTo - pointFro;
-
-        // 4. Base perpendicular vector (oriented for screen inverted-Y space)
-        perpendicular = Point(direction.y.neg, direction.x);
-
-        // 5. Normalize vector safely
-        if (totalDistance > 0) {
-            perpendicular = perpendicular / totalDistance;
-        };
-
-        // 6. Apply skew calculation to maintain the asymmetric peak
-        if (time != 0.5) {
-            var skewDirection = (pointFro - midPoint);
-            if (skewDirection.rho > 0) {
-                perpendicular = perpendicular + (skewDirection / totalDistance * 0.5);
-            };
-        };
-
-        // 7. Explicitly evaluate convexity rules using robust method-style .if calls
-        // (Inverted Y: "above" means smaller Y value)
-        isConvex = (ampScale < 0).if({
-            pointFro.y > pointTo.y
-        }, {
-            pointFro.y < pointTo.y
-        });
-
-        // 8. Determine directional multiplier (convex = 1, concave = -1)
-        curveDirectionModifier = isConvex.if({ 1 }, { -1 });
-
-        // 9. Calculate final control point using absolute amplitude scale
-        controlPoint = midPoint + (perpendicular * (ampScale * 0.33).abs * curveDirectionModifier * (totalDistance * 0.25));
-
-        // 10. Force return of the Point instance to avoid nil bugs downstream
-        controlPoint;
-    };
-
-
-    var selected = -1;
-    var envPoints;
-    var makeEnvPoints = { |levels, times|
-        var totalTime = times.sum;
-        levels.collect { |level, i|
-            var x = if(i == 0) { 0.0 } { times[0..(i - 1)].sum / totalTime };
-            [x, level.clip(-1.0, 1.0)]
-        }
-    };
-
-    envPoints = makeEnvPoints.(envLevels, envTimes);
-
-    envView = UserView(paneMain, paneMain.bounds.insetBy(margin, margin))
-        .resize_(5)
-        .focusColor_(Color.clear);
-
-    envView.drawFunc = { |vw|
-        var origin = vw.bounds.moveTo(0, 0);
-        var zeroY = origin.height * 0.5;
-        var minVal = -1.0;
-        var maxVal = 1.0;
-        var step = 0.25;
-        var pts;
-        var prevPt;
-        var delta, deltaLen;
-        var perpendicular;
-        var amplitude;
-        var amplitudeScale;
-        var controlPointRatio;
-        var cPoint;
-        var cPoint1, cPoint2;
-
-        envPoints[0][1] = 0.0;
-        envPoints[envPoints.size - 1][1] = 0.0;
-        envPoints[0][0] = 0.0;
-        envPoints[envPoints.size - 1][0] = 1.0;
-        pts = envPoints.collect { |pt|
-            Point(
-                pt[0].linlin(0.0, 1.0, 0, origin.width),
-                pt[1].linlin(-1.0, 1.0, origin.height, 0, \none)
-            )
-        };
-
-        Pen.color = Color.grey(0.1);
-        Pen.fillRect(origin);
-
-        Pen.color = Color.grey(0.35).alpha_(0.35);
-        ((maxVal - minVal) / step + 1).asInteger.do { |i|
-            var v = minVal + (i * step);
-            var y = v.linlin(minVal, maxVal, origin.height, 0, \none);
-            Pen.line(0@y, origin.width@y);
-            Pen.stringAtPoint(v.asStringPrec(2), Point(4, y + 2));
-        };
-        Pen.stroke;
-
-        Pen.color = Color.white.alpha_(0.75);
-        Pen.line(0@zeroY, origin.width@zeroY);
-        Pen.stroke;
-
-        Pen.color = Color.red.alpha_(0.25);
-        Pen.moveTo(pts[0]);
-        pts[1..].do { |pt, i|
-            prevPt = pts[i];
-            case
-            { envCurves[i] == \sine } {
-                // Calculate the vector from start to end point
-                delta = pt - prevPt;
-
-                // Calculate perpendicular vector (rotated 90 degrees) and normalize it
-                deltaLen = delta.dist(Point(0, 0));
-                perpendicular = Point(delta.y.neg / deltaLen, delta.x / deltaLen);
-
-                // Define wave amplitude (height of the sine wave)
-                amplitude = deltaLen * 0.1; // Adjust multiplier to change wave height
-                amplitudeScale = perpendicular * amplitude;
-
-                // If sine crosses the X-axis, change amplitudeScale sign to preserve the wave direction
-                if ((pt.y - prevPt.y) > 0) { amplitudeScale = amplitudeScale.neg };
-
-                // Calculate control points
-                cPoint1 = prevPt + (delta * 0.33) + amplitudeScale;
-
-                // Control point 2: 2/3 along the line, offset opposite perpendicular
-                cPoint2 = pt - (delta * 0.33) - amplitudeScale;
-
-                Pen.curveTo(pt, cPoint1, cPoint2);
-            }
-            { envCurves[i] != 0.0 } {
-                cPoint = getBezierCtrlPoint.(prevPt, pt, envCurves[i], 0.9);
-                Pen.quadCurveTo(pt, cPoint);
-            }
-            { 
-                // default is a straight line
-                Pen.lineTo(pt)
-            }
-        };
-        Pen.lineTo(Point(origin.width, zeroY));
-        Pen.lineTo(Point(0, zeroY));
-        Pen.fill;
-
-        // WARNING: temporary! Remove after testing curves
-        Pen.color = Color.white;
-        Pen.fillOval(Rect.aboutPoint(cPoint, 5, 5));
-
-        Pen.color = Color.red.alpha_(0.85);
-        Pen.moveTo(pts[0]);
-        pts[1..].do { |pt| Pen.lineTo(pt); };
-        Pen.stroke;
-
-        pts.do { |pt, i|
-            var radius = if(selected == i) { 6 } { 4 };
-            var value = envPoints[i][1];
-            var label = value.round(0.001).asStringPrec(3);
-            var labelPos, labelX, labelY;
-
-            Pen.color = if(selected == i) { Color.white } { Color.red.alpha_(0.75) };
-            Pen.fillOval(Rect.aboutPoint(pt, radius, radius));
-
-            if((i != 0) and: { i != (pts.size - 1) }) {
-                labelPos = Point(pt.x, pt.y);
-                if(value >= 0) {
-                    // positive values: above the point
-                    labelY = pt.y - 20;
-                    labelPos = Point(pt.x, labelY);
-                    if(pt.y < 20) {
-                        // keep clear of the top border
-                        labelPos = Point(pt.x + 12, pt.y);
-                    };
-                } {
-                    // negative values: below the point
-                    labelY = pt.y + 8;
-                    labelPos = Point(pt.x, labelY);
-                    if(pt.y > (origin.height - 20)) {
-                        // keep clear of the bottom border
-                        labelPos = Point(pt.x + 12, pt.y - 12);
-                    };
-                };
-
-                if(pt.x > (origin.width - 40)) {
-                    // keep the label inside the right edge
-                    labelPos = Point(pt.x - 27, labelPos.y);
-                } {
-                    if(value.abs > 0.95) {
-                        // slight right shift near the extreme values
-                        labelX = pt.x + 10;
-                        labelPos = Point(labelX, labelPos.y);
-                    };
-                };
-
-                Pen.color = Color.white;
-                Pen.stringAtPoint(label, labelPos);
-            };
-        };
-    };
-
-    envView.mouseDownAction = { |vw, x, y, mod|
-        var origin = vw.bounds.moveTo(0, 0);
-        var pts = envPoints.collect { |pt|
-            Point(
-                pt[0].linlin(0.0, 1.0, 0, origin.width),
-                pt[1].linlin(-1.0, 1.0, origin.height, 0, \none)
-            )
-        };
-
-        selected = pts.detectIndex { |pt, idx|
-            if((idx == 0) or: { idx == (pts.size - 1) }) {
-                false
-            } {
-                ((pt.x - x).abs <= 8) and: { (pt.y - y).abs <= 8 }
-            }
-        } ?? { -1 };
-
-        vw.refresh;
-    };
-
-    envView.mouseMoveAction = { |vw, x, y, mod|
-        if(selected != -1) {
-            var origin = vw.bounds.moveTo(0, 0);
-            envPoints[selected][0] = x.linlin(0, origin.width, 0.0, 1.0).clip(0.0, 1.0).round(0.01);
-            envPoints[selected][1] = y.linlin(0, origin.height, 1.0, -1.0).clip(-1.0, 1.0).round(0.01);
-            if(selected == 0) {
-                envPoints[0][0] = 0.0;
-                envPoints[0][1] = 0.0;
-            };
-            if(selected == (envPoints.size - 1)) {
-                envPoints[envPoints.size - 1][0] = 1.0;
-                envPoints[envPoints.size - 1][1] = 0.0;
-            };
-            vw.refresh;
-        };
-    };
-
-    envView.mouseUpAction = { |vw, x, y|
-        selected = -1;
-        vw.refresh;
-    };
-
-    envView;
+    var plotView = Plotter(
+        name: "WT",
+        bounds: Rect(0, 0, paneMain.bounds.width-(margin * 2), paneMain.bounds.height - (margin * 2)),
+        parent: paneMain
+    );
+    plotView.value = env.asSignal;
+    plotView.editMode = false;
+    plotView.plotMode = \stems;
+    plotView.setProperties(
+        \fontColor, Color(0.5, 1, 0);,
+        \plotColor, Color.red.alpha_(0.85),
+        \backgroundColor, drawColor,
+        \gridColorY, Color.yellow(0.5),
+        \gridOnX, false
+    );
+    plotView.refresh;
 }.value;
+
+
+// TODO:
+// Populate paneRight with the list of actions available for UNDO (use ScrollView).
 
 
 // Labels for control elements (curve, duration, slope, etc.)
 {
-    var labelCtrl = { |parent, label|
-        StaticText(parent, 80@(85-(gap*2)))
+    var labelCtrl = { |parent, label, height|
+        StaticText(parent, 80@height)
             .string_("  " ++ label.asString)
-            .align_(\left)
+            .align_(\bottomLeft)
             .stringColor_(Color.white)
             .background_(colorBg)
             .font_(fontHeader);
@@ -361,17 +113,18 @@ win.background_(colorBg);
 
     var labelCtrlPanel = makePanel.(paneBottom, 0, 0, 90, paneBottom.bounds.height-(2*margin), colorPane);
 
-    labelCtrl.(labelCtrlPanel, "Level");
-    labelCtrl.(labelCtrlPanel, "Duration");
-    labelCtrl.(labelCtrlPanel, "Slope");
-    labelCtrl.(labelCtrlPanel, "Standard");
+    labelCtrl.(labelCtrlPanel, "segment", 20+gap);
+    labelCtrl.(labelCtrlPanel, "level", 85+gap);
+    labelCtrl.(labelCtrlPanel, "duration", 85+gap);
+    labelCtrl.(labelCtrlPanel, "slope", 85+gap);
+    labelCtrl.(labelCtrlPanel, "std curve", 20);
 }.value;
 
 
 // Control strip.
 controlStrip = { |index, parent|
-    var knobWidth = 65;
-    var knobHeight = 85;
+    var knobWidth = parent.bounds.width-(margin*2);
+    var knobHeight = knobWidth + 20;
     var knobLevel, knobTime, knobCurve, pumCurve;
     var knob = { |par, label, spec, action, initVal|
         if (initVal.isNil) { initVal = spec.default };
@@ -389,7 +142,7 @@ controlStrip = { |index, parent|
     };
 
     // Index label for the current envelope point.
-    StaticText(parent, (parent.bounds.width - 30 - (2*gap))@26)
+    StaticText(parent, (parent.bounds.width - 30 - (2*gap))@20)
         .string_((index+1).asString.padLeft(2, string: "0"))
         .align_(\center)
         .stringColor_(Color.white)
@@ -397,14 +150,15 @@ controlStrip = { |index, parent|
         .font_(fontHeader);
 
     // Delete segment.
-    Button(parent, 23@23)
-        .states_([["❌", Color.red, drawColor]])
+    Button(parent, 25@20)
+        .states_([["×", Color.white, drawColor]])
         .font_(fontButton)
         .action_({ |bt| "remove".postln });
 
-    knobLevel = knob.(parent, "Level", [-1.0, 1.0].asSpec, { |ez| }, envLevels[index+1]);
-    knobTime = knob.(parent, "Dur", [0.0, 2.0].asSpec, { |ez| }, envTimes[index]);
-    knobCurve = knob.(parent, "Slope", [-5.0, 5.0].asSpec, { |ez| }, 0.0);
+    // Knobs for controlling parameters of the env (leaving labels empty to space them a bit).
+    knobLevel = knob.(parent, " ", [-1.0, 1.0].asSpec, { |ez| }, envLevels[index+1]);
+    knobTime = knob.(parent, " ", [0.0, 2.0].asSpec, { |ez| }, envTimes[index]);
+    knobCurve = knob.(parent, " ", [-5.0, 5.0].asSpec, { |ez| }, 0.0);
 
     // Standard curves (mutually exclusive with slope).
     pumCurve = EZPopUpMenu(parent,
@@ -420,21 +174,31 @@ controlStrip = { |index, parent|
         background: transparent,
     ).font_(Font("Monospace", 12));
 
+    // TODO: move this to watcher
     if ( envCurves[index].isFloat ) {
         knobCurve.value_(envCurves[index]);
         knobCurve.enabled_(true)
     } {
         knobCurve.enabled_(false)
     };
-};
 
-// bookmark
-// populate a bottom area by this
-controlStrip.value(5, paneRight);
+    // Buttonms for inserting/adding segments.
+    Button(parent, 25@20)
+        .states_([["◀", Color.white, drawColor]])
+        .action_({ |bt| "insert left".postln });
+    StaticText(parent, (parent.bounds.width - 50 - (2*gap)-(2*margin))@20)
+        .string_("+")
+        .align_(\center)
+        .stringColor_(Color.white)
+        .font_(fontHeader);    
+    Button(parent, 25@20)
+        .states_([["▶", Color.white, drawColor]])
+        .action_({ |bt| "add".postln });
+};
 
 // Scrolling area for controls of the envelope segments.
 {
-    var ctrlStripWidth = 84;
+    var ctrlStripWidth = 80;
     var compWidth = (envTimes.size * ctrlStripWidth) + ((envTimes.size - 1) * gap) + (margin * 2);
     var scroll = ScrollView(paneBottom, Rect(0, 0, paneBottom.bounds.width-105, paneBottom.bounds.height-(margin*2)))
         .background_(colorPane);
@@ -446,48 +210,6 @@ controlStrip.value(5, paneRight);
         controlStrip.value(i, pane);
     }
 }.value;
-
-// TODO: transfer necessary elements and remove afterwards
-//
-// // Bottom panel controls: navigation buttons and edit buttons.
-// {
-//     var btnSize = 24;
-//     var btnWidth = 50;
-
-//     // Left-aligned navigation buttons: first, previous, next, last
-//     Button(paneBottom, btnSize@btnSize)
-//         .states_([["⏮", Color.white, Color.grey(0.5)]])
-//         .font_(fontButton)
-//         .action_({ |bt| "first".postln });
-
-//     Button(paneBottom, btnSize@btnSize)
-//         .states_([["◀", Color.white, Color.grey(0.5)]])
-//         .font_(fontButton)
-//         .action_({ |bt| "previous".postln });
-
-//     Button(paneBottom, btnSize@btnSize)
-//         .states_([["▶", Color.white, Color.grey(0.5)]])
-//         .font_(fontButton)
-//         .action_({ |bt| "next".postln });
-
-//     Button(paneBottom, btnSize@btnSize)
-//         .states_([["⏭", Color.white, Color.grey(0.5)]])
-//         .font_(fontButton)
-//         .action_({ |bt| "last".postln });
-
-//     // 
-//     makePanel.(paneBottom, (btnSize * 4) + (gap * 3) + margin, margin, btnSize * 3, btnSize, transparent);
-
-//     Button(paneBottom, btnWidth@btnSize)
-//         .states_([["add", Color.white, Color.grey(0.5)]])
-//         .font_(fontButton)
-//         .action_({ |bt| "add".postln });
-
-//     Button(paneBottom, btnWidth@btnSize)
-//         .states_([["delete", Color.white, Color.grey(0.5)]])
-//         .font_(fontButton)
-//         .action_({ |bt| "delete".postln });
-// }.value;
 
 win.front;
 
