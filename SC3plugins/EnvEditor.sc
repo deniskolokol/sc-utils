@@ -12,7 +12,6 @@ var fontLabel = Font("Helvetica", 12);
 var fontControl = Font("Helvetica", 10);
 var fontButton = Font("Helvetica", 11);
 
-
 // GUI elements.
 var win;
 var paneTop, paneMain, paneRight, paneBottom;
@@ -20,15 +19,26 @@ var presetSelector;
 var plotView;
 var ctrlStripView;
 
-
-// Default gloelope descriptor that opens when the editor is opened without Env.
+// Default envelope descriptor that opens when the editor is opened without Env.
 var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
 var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
 var envCurves = [\sine, 2.071, \sine, \sine, 0, -3.617];
 var envelope = Env(envLevels, envTimes, envCurves);
 
+// GUI refresher when overriding envelope
+var createEnv = { |levels, times, curves|
+    envelope = Env.new(levels, times, curves);
+    plotView.value = envelope.asSignal;
+    plotView.refresh
+};
+
 // TODO: Read this from external file
 var presets = (
+    flow: (
+        levels: [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0],
+        times: [1.377, 1.059, 1.155, 1.245, 1.131, 2.117],
+        curve: [\sine, 2.071, \sine, \sine, 0, -3.617]
+    ),
     wiggly: (
         levels: [0.0, 0.855, -0.983, 0.911, -0.354, 0.093, 0.063, -0.697, -0.271, 0.0],
         times: [1.827, 1.104, 2.085, 2.682, 1.114, 2.001, 2.045, 2.911, 1.701],
@@ -39,12 +49,12 @@ var presets = (
         times: [3.516, 1.135, 4.689, 3.868, 3.263, 3.369, 3.301, 1.952, 1.168, 5.537, 4.497],
         curve: [2.886, 0.0, 4.29, \sine, -1.721, 0.0, -11.733, 1.154, -15.583, 3.664, 1.355]
     ),
-    flow: (
+    zombki: (
         levels: [0.0, -0.597, 0.967, -0.077, -0.583, 0.602, -0.292, -0.76, 0.997, 0.34, -0.967, 0.089, 0.612, 0.841, 0.0],
         times: [2.608, 6.674, 2.612, 6.949, 1.392, 1.32, 8.755, 3.013, 5.986, 1.64, 1.756, 2.223, 1.43, 6.891],
         curve: [\sine, -8.932, \sine, -18.882, 0.0, 0.0, 0.0, \sine, -3.03, -1.938, \sine, 4.377, \sine, 2.907]
     ),
-    zombki: (
+    chaos: (
         levels: [0.0, -0.168, 0.05, -0.129, -0.232, 0.196, 0.9, -0.644, -0.679, -0.793, 0.104, -0.571, 0.061, -0.617, 0.264, -0.867, 0.529, 0.925, 0.974, 0.0],
         times: [2.838, 11.887, 8.25, 2.021, 9.967, 10.5, 10.647, 11.555, 6.593, 4.335, 4.215, 9.586, 1.464, 3.892, 1.141, 8.736, 12.437, 9.063, 3.147],
         curve: [0.0, -2.067, \sine, 4.88, 0.0, 0.0, \sine, -13.804, 0.0, \sine, -7.557, \sine, \sine, 0.0, \sine, 7.58, 0.0, -3.453, 18.079]
@@ -56,6 +66,7 @@ var makePanel = { |parent, x, y, w, h, color|
     panel.decorator = FlowLayout(panel.bounds, margin@margin, gap@gap);
     panel;
 };
+
 
 // GUI elements for controlling individual segment of the envelope.
 var makeControlStrip = { |index, parent|
@@ -95,16 +106,17 @@ var makeControlStrip = { |index, parent|
     knobLevel = knob.(parent, " ", [-1.0, 1.0].asSpec,
         { |ez|
             envelope.levels[index+1] = ez.value;
-            plotView.value = envelope.asSignal;
-            plotView.refresh
+            createEnv.(envelope.levels, envelope.times, envelope.curves);
         },
         envelope.levels[index+1]
-    );
+    )
+    // Make sure the last level cannot be changed (the Env should end with the level 0)
+    .enabled_(index != (envelope.levels.size-2));
+
     knobTime = knob.(parent, " ", [0.01, 2.00].asSpec,
         { |ez|
             envelope.times[index] = ez.value;
-            plotView.value = envelope.asSignal;
-            plotView.refresh;
+            createEnv.(envelope.levels, envelope.times, envelope.curves);
         },
         envelope.times[index]
     );
@@ -161,7 +173,7 @@ var makeControlPanel = {
     ctrlStripView.decorator = FlowLayout(ctrlStripView.bounds);
 
     // Recreate GUI elements from the envelope instance
-    (envelope.times-1).do { |value, i|
+    envelope.times.do { |value, i|
         var pane = makePanel.(ctrlStripView, 0, 0, 80, ctrlStripView.bounds.height-(margin*2), colorBg);
         makeControlStrip.value(i, pane);
     };
@@ -197,9 +209,11 @@ win.background_(colorBg);
         name: "WT",
         bounds: Rect(0, 0, paneMain.bounds.width-(margin * 2), paneMain.bounds.height - (margin * 2)),
         parent: paneMain
-    );
-    plotView.value = envelope.asSignal;
-    plotView.editMode = false;
+    )
+    .editMode_(false)
+    .plotMode_(\pfilled)
+    .value_(envelope);
+
     plotView.setProperties(
         \fontColor, Color(0.5, 1, 0);,
         \plotColor, Color.red.alpha_(0.5),
@@ -255,11 +269,7 @@ win.background_(colorBg);
         "Presets",
         globalAction: { |m|
             var val = presets[m.item];
-            envelope = Env.new(val.levels, val.times, val.curve);
-
-            // Re-draw the plot.
-            plotView.value = envelope.asSignal;
-            plotView.refresh;
+            createEnv.(val.levels, val.times, val.curve);
 
             // Re-populate the controls.
             makeControlPanel.value;
