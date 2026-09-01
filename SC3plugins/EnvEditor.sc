@@ -64,8 +64,13 @@ var envelope = Env(
     presets[defaultPreset].curve
 );
 
-// Manager to notify listeners about the pattern state change
-var stateName = \curveType;
+var addSegment = { |index|
+    envelope.levels.insert(index+1, envelope.levels[index+1]);
+    envelope.times.insert(index, envelope.times[index]);
+    envelope.curves.insert(index, envelope.curves[index]);
+    createEnv.(envelope.levels, envelope.times, envelope.curves);
+    makeControlPanel.value;
+};
 
 // A simple panel creator with FlowLayout.
 var makePanel = { |parent, x, y, w, h, color|
@@ -106,7 +111,7 @@ var makeKnob = { |parent, label, spec, action, initVal, enabled=true|
 
 // GUI elements for controlling individual segment of the envelope.
 var makeControlStrip = { |index, parent|
-    var standardCurves = [\sine, \squared, \cubed, \exp, \exponential, \hold, \step, \welch];
+    var standardCurves = [\sine, \squared, \cubed, \exponential, \hold, \step, \welch];
     var knobLevel, knobTime, knobCurve, pumCurve;
 
     // Index label for the current envelope point.
@@ -119,9 +124,25 @@ var makeControlStrip = { |index, parent|
 
     // Delete segment.
     Button(parent, 25@20)
-        .states_([["×", Color.white, drawColor]])
+        .states_([[
+            "×",
+            if ([0, envelope.times.size-1].includes(index)) { Color.grey } { Color.white },
+            drawColor
+        ]])
         .font_(fontButton)
-        .action_({ |bt| "remove".postln });
+        // Hide the delete button for the first and last segment
+        .enabled_([0, envelope.times.size-1].includes(index).not)
+        .action_({ |bt|
+            if (envelope.levels.size > 2) {
+                envelope.levels.removeAt(index+1);
+                envelope.times.removeAt(index);
+                envelope.curves.removeAt(index);
+                createEnv.(envelope.levels, envelope.times, envelope.curves);
+                makeControlPanel.value;
+            } {
+                "Cannot delete the last segment.".postln;
+            };
+        });
 
     // Knobs for controlling parameters of the env (leaving labels empty to space them a bit).
     // Make sure the last level cannot be changed (the Env should end with the level 0),
@@ -162,11 +183,21 @@ var makeControlStrip = { |index, parent|
     // Standard curves (mutually exclusive with slope).
     pumCurve = EZPopUpMenu(parent,
         (parent.bounds.width - (margin*2))@18,
+        //items: ['..'] ++ standardCurves,
         items: ['..'] ++ standardCurves,
         globalAction: { |menu|
             // Disable slope knob if a standard curve is selected
             knobCurve.enabled = menu.value == 0;
             updateColorScheme.(knobCurve);
+
+            // Update the envelope curve based on the selected standard curve or slope value
+            if (menu.value == 0) {
+                envelope.curves[index] = knobCurve.value;
+            } {
+                // Use selected standard curve
+                envelope.curves[index] = standardCurves[menu.value - 1];
+            };
+            createEnv.(envelope.levels, envelope.times, envelope.curves);
         },
         initVal: (standardCurves.indexOf(envelope.curves[index]) ? -1) + 1,
         labelWidth: 60
@@ -181,7 +212,7 @@ var makeControlStrip = { |index, parent|
     // Button for inserting/adding segments.
     Button(parent, 25@20)
         .states_([["◀", Color.white, drawColor]])
-        .action_({ |bt| "insert left".postln });
+        .action_({ |bt| addSegment.value(index) });
     StaticText(parent, (parent.bounds.width - 50 - (2*gap)-(2*margin))@20)
         .string_("+")
         .align_(\center)
@@ -189,7 +220,7 @@ var makeControlStrip = { |index, parent|
         .font_(fontHeader);    
     Button(parent, 25@20)
         .states_([["▶", Color.white, drawColor]])
-        .action_({ |bt| "add".postln });
+        .action_({ |bt| addSegment.value(index+1) });
 };
 
 var makeControlPanel = {
@@ -200,7 +231,6 @@ var makeControlPanel = {
 
     // Clear existing elements from the control panel
     ctrlStripView.children.removeAll;
-
     ctrlStripView.bounds = Rect(0, 0, compWidth, ctrlStripView.bounds.height);
 
     // Reset the decorator
@@ -211,7 +241,7 @@ var makeControlPanel = {
         var pane = makePanel.(ctrlStripView, 0, 0, 80, ctrlStripView.bounds.height-(margin*2), colorBg);
         makeControlStrip.value(i, pane);
     };
-    
+
     ctrlStripView.refresh;
 };
 
