@@ -19,12 +19,6 @@ var presetSelector;
 var plotView;
 var ctrlStripView;
 
-// Default envelope descriptor that opens when the editor is opened without Env.
-var envLevels = [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0];
-var envTimes = [1.377, 1.059, 1.155, 1.245, 1.131, 2.117];
-var envCurves = [\sine, 2.071, \sine, \sine, 0, -3.617];
-var envelope = Env(envLevels, envTimes, envCurves);
-
 // GUI refresher when overriding envelope
 var createEnv = { |levels, times, curves|
     envelope = Env.new(levels, times, curves);
@@ -59,6 +53,15 @@ var presets = (
         times: [2.838, 11.887, 8.25, 2.021, 9.967, 10.5, 10.647, 11.555, 6.593, 4.335, 4.215, 9.586, 1.464, 3.892, 1.141, 8.736, 12.437, 9.063, 3.147],
         curve: [0.0, -2.067, \sine, 4.88, 0.0, 0.0, \sine, -13.804, 0.0, \sine, -7.557, \sine, \sine, 0.0, \sine, 7.58, 0.0, -3.453, 18.079]
     )
+);
+
+// Default preset and envelope descriptor that opens when the editor is opened
+// without Env.
+var defaultPreset = \flow;
+var envelope = Env(
+    presets[defaultPreset].levels,
+    presets[defaultPreset].times,
+    presets[defaultPreset].curve
 );
 
 // A simple panel creator with FlowLayout.
@@ -287,6 +290,7 @@ win.background_(colorBg);
 
 // Top panel controls.
 {
+    var initVal;
     presetSelector = EZPopUpMenu(paneTop,
         Rect(margin, margin, paneTop.bounds.width * 0.35, paneTop.bounds.height * 0.8),
         "Presets",
@@ -297,7 +301,6 @@ win.background_(colorBg);
             // Re-populate the controls.
             makeControlPanel.value;
         },
-        initVal: 0,
         labelWidth: 60
     ).setColors(
         stringColor: Color.white,
@@ -306,17 +309,22 @@ win.background_(colorBg);
         background: transparent,
     ).font_(Font("Monospace", 12));
 
-    presets.keysValuesDo { |name, val|
+    presets.keysValuesDo { |name, val, i|
         presetSelector.addItem(name, { |a|
-            envelope = Env.new(val.levels, val.times, val.curve) });
+            envelope = Env.new(val.levels, val.times, val.curve)
+        });
 
-            // Re-draw the plot.
-            plotView.value = envelope.asSignal;
-            plotView.refresh;
+        if (name == defaultPreset) { initVal = i };
 
-            // Re-populate the controls.
-            makeControlPanel.value;
+        // Re-draw the plot.
+        plotView.value = envelope.asSignal;
+        plotView.refresh;
+
+        // Re-populate the controls.
+        makeControlPanel.value;
     };
+
+    presetSelector.valueAction_(initVal);
 }.value;
 
 // Preset control buttons
