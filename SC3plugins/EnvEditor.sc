@@ -64,6 +64,9 @@ var envelope = Env(
     presets[defaultPreset].curve
 );
 
+// Manager to notify listeners about the pattern state change
+var stateName = \curveType;
+
 // A simple panel creator with FlowLayout.
 var makePanel = { |parent, x, y, w, h, color|
     var panel = CompositeView(parent, Rect(x, y, w, h)).background_(color ? colorPane);
@@ -71,27 +74,32 @@ var makePanel = { |parent, x, y, w, h, color|
     panel;
 };
 
+var updateColorScheme = { |knob|
+    knob.setColors(
+        stringColor:Color.white,
+        numBackground:Color.grey,
+        knobColors:[
+            Color.grey(0.1),
+            if (knob.enabled) {Color.red} {Color.grey},
+            if (knob.enabled) {Color.white} {Color.grey},
+            if (knob.enabled) {Color.red} {Color.grey}
+        ],
+        numNormalColor:if (knob.enabled) {Color.yellow} {Color.grey},
+    );
+};
+
 var makeKnob = { |parent, label, spec, action, initVal, enabled=true|
     var knobWidth = parent.bounds.width-(margin*2);
     var knobHeight = knobWidth + 20;
 
     if (initVal.isNil) { initVal = spec.default };
-    EZKnob(parent, knobWidth@knobHeight, " " ++ label.asString, spec,
-        { |ez| action.(ez.value) },
-        initVal, layout: \vert2
-    )
-    .font_(fontControl)
-    .enabled_(enabled)
-    .setColors(
-        stringColor:Color.white,
-        numBackground:Color.grey,
-        knobColors:[
-            Color.grey(0.1),
-            if (enabled) {Color.red} {Color.grey},
-            if (enabled) {Color.white} {Color.grey},
-            if (enabled) {Color.red} {Color.grey}
-        ],
-        numNormalColor:if (enabled) {Color.yellow} {Color.grey},
+    updateColorScheme.value(
+        EZKnob(parent, knobWidth@knobHeight, " " ++ label.asString, spec,
+            { |ez| action.(ez.value) },
+            initVal, layout: \vert2
+        )
+        .font_(fontControl)
+        .enabled_(enabled)
     )
 };
 
@@ -144,7 +152,6 @@ var makeControlStrip = { |index, parent|
         enabled: standardCurves.includes(envelope.curves[index]).not
     );
     knobCurve.knobView.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
-        knobCurve.value.postln;
         if ((modifiers == 262144) and: (buttonNumber == 1)) {
             "Ctrl+Click detected on knobCurve. Resetting slope to 0.0.".postln;
             knobCurve.valueAction = 0.0; // Reset slope to 0.0 when Ctrl is pressed
@@ -159,6 +166,7 @@ var makeControlStrip = { |index, parent|
         globalAction: { |menu|
             // Disable slope knob if a standard curve is selected
             knobCurve.enabled = menu.value == 0;
+            updateColorScheme.(knobCurve);
         },
         initVal: (standardCurves.indexOf(envelope.curves[index]) ? -1) + 1,
         labelWidth: 60
@@ -346,8 +354,5 @@ win.front;
 
 CmdPeriod.doOnce({
     win.close;
-
-    "> Clearing notification centers...".post;
-    NotificationCenter.clear;
 });
 )
