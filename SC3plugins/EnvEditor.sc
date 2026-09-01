@@ -37,7 +37,7 @@ var presets = (
     flow: (
         levels: [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0],
         times: [1.377, 1.059, 1.155, 1.245, 1.131, 2.117],
-        curve: [\sine, 2.071, \sine, \sine, 0, -3.617]
+        curve: [\sine, 2.071, \sine, \sine, 0.0, -3.617]
     ),
     wiggly: (
         levels: [0.0, 0.855, -0.983, 0.911, -0.354, 0.093, 0.063, -0.697, -0.271, 0.0],
@@ -61,17 +61,6 @@ var presets = (
     )
 );
 
-// // Manager to notify listeners about the knob state change: if knob is not
-// // enabled for editing, its color must be changed to gray.
-// var curveTypeWatcherName = \knobState;
-// var curveTypeStateManager = { |index, state|
-//     NotificationCenter.notify(
-//         curveTypeWatcherName,
-//         index,
-//         state
-//     );
-// };
-
 // A simple panel creator with FlowLayout.
 var makePanel = { |parent, x, y, w, h, color|
     var panel = CompositeView(parent, Rect(x, y, w, h)).background_(color ? colorPane);
@@ -79,32 +68,35 @@ var makePanel = { |parent, x, y, w, h, color|
     panel;
 };
 
+var makeKnob = { |parent, label, spec, action, initVal, enabled=true|
+    var knobWidth = parent.bounds.width-(margin*2);
+    var knobHeight = knobWidth + 20;
+
+    if (initVal.isNil) { initVal = spec.default };
+    EZKnob(parent, knobWidth@knobHeight, " " ++ label.asString, spec,
+        { |ez| action.(ez.value) },
+        initVal, layout: \vert2
+    )
+    .font_(fontControl)
+    .enabled_(enabled)
+    .setColors(
+        stringColor:Color.white,
+        numBackground:Color.grey,
+        knobColors:[
+            Color.grey(0.1),
+            if (enabled) {Color.red} {Color.grey},
+            if (enabled) {Color.white} {Color.grey},
+            if (enabled) {Color.red} {Color.grey}
+        ],
+        numNormalColor:if (enabled) {Color.yellow} {Color.grey},
+    )
+};
+
+
 // GUI elements for controlling individual segment of the envelope.
 var makeControlStrip = { |index, parent|
     var standardCurves = [\sine, \squared, \cubed, \exp, \exponential, \hold, \step, \welch];
-    var knobWidth = parent.bounds.width-(margin*2);
-    var knobHeight = knobWidth + 20;
     var knobLevel, knobTime, knobCurve, pumCurve;
-    var knob = { |par, label, spec, action, initVal, enabled=true|
-        if (initVal.isNil) { initVal = spec.default };
-        EZKnob(par, knobWidth@knobHeight, " " ++ label.asString, spec,
-            { |ez| action.(ez.value) },
-            initVal, layout: \vert2
-        )
-        .font_(fontControl)
-        .enabled_(enabled)
-        .setColors(
-            stringColor:Color.white,
-            numBackground:Color.grey,
-            knobColors:[
-                Color.grey(0.1),
-                if (enabled) {Color.red} {Color.grey},
-                if (enabled) {Color.white} {Color.grey},
-                if (enabled) {Color.red} {Color.grey}
-            ],
-            numNormalColor:if (enabled) {Color.yellow} {Color.grey},
-        )
-    };
 
     // Index label for the current envelope point.
     StaticText(parent, (parent.bounds.width - 30 - (2*gap))@20)
@@ -123,7 +115,7 @@ var makeControlStrip = { |index, parent|
     // Knobs for controlling parameters of the env (leaving labels empty to space them a bit).
     // Make sure the last level cannot be changed (the Env should end with the level 0),
     // and thus the last knob should be disabled.
-    knobLevel = knob.(parent, " ", [-1.0, 1.0].asSpec,
+    knobLevel = makeKnob.(parent, " ", [-1.0, 1.0].asSpec,
         { |ez|
             envelope.levels[index+1] = ez.value;
             createEnv.(envelope.levels, envelope.times, envelope.curves);
@@ -132,32 +124,40 @@ var makeControlStrip = { |index, parent|
         enabled: index != (envelope.levels.size-2)
     );
 
-    knobTime = knob.(parent, " ", [0.01, 2.00].asSpec,
+    knobTime = makeKnob.(parent, " ", [0.01, 2.00].asSpec,
         { |ez|
             envelope.times[index] = ez.value;
             createEnv.(envelope.levels, envelope.times, envelope.curves);
         },
         envelope.times[index]
     );
-    knobCurve = knob.(parent, " ", [-5.0, 5.0].asSpec,
+
+    knobCurve = makeKnob.(parent, " ", [-5.0, 5.0].asSpec,
         { |ez|
             envelope.curves[index] = ez.value;
             createEnv.(envelope.levels, envelope.times, envelope.curves);
         },
-        0.0,
+        initVal: if (standardCurves.includes(envelope.curves[index]), 0.0, envelope.curves[index]),
         enabled: standardCurves.includes(envelope.curves[index]).not
     );
+    knobCurve.knobView.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
+        knobCurve.value.postln;
+        if ((modifiers == 262144) and: (buttonNumber == 1)) {
+            "Ctrl+Click detected on knobCurve. Resetting slope to 0.0.".postln;
+            knobCurve.valueAction = 0.0; // Reset slope to 0.0 when Ctrl is pressed
+        };
+    };
+    knobCurve.labelView.mouseDownAction = knobCurve.knobView.mouseDownAction;
 
     // Standard curves (mutually exclusive with slope).
     pumCurve = EZPopUpMenu(parent,
         (parent.bounds.width - (margin*2))@18,
         items: ['..'] ++ standardCurves,
-        globalAction: { |menu| menu.value.postln },
-        initVal: if (standardCurves.includes(envelope.curves[index])) {
-            standardCurves.indexOf(envelope.curves[index])+1
-        } {
-            0
+        globalAction: { |menu|
+            // Disable slope knob if a standard curve is selected
+            knobCurve.enabled = menu.value == 0;
         },
+        initVal: (standardCurves.indexOf(envelope.curves[index]) ? -1) + 1,
         labelWidth: 60
     )
     .setColors(
@@ -166,25 +166,6 @@ var makeControlStrip = { |index, parent|
         menuBackground: colorBg,
         background: transparent,
     ).font_(Font("Monospace", 12));
-
-    // TODO: move this to watcher
-    if ( envelope.curves[index].isFloat ) {
-        knobCurve.value_(envelope.curves[index]);
-        knobCurve.enabled_(true)
-    } {
-        knobCurve.enabled_(false)
-    };
-    // NotificationCenter.register(
-    //     curveTypeWatcherName,
-    //     index,
-    //     knobCurve,            // The object to notify (the button)
-    //     { |val|
-    //         // Update knob style and availability depending on the pumCurve value
-    //         {
-    //             knobCurve.enabled_(pumCurve.value.asBoolean.not)
-    //         }.defer
-    //     }
-    // );
 
     // Button for inserting/adding segments.
     Button(parent, 25@20)
