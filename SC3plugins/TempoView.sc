@@ -17,7 +17,7 @@
 
 TempoView {
     var <>accents, <view;
-    var clock, parentView;
+    var clock;
     classvar <fontLabel, <colorBg, <colors, <margin, <gap;
 
     *initClass {
@@ -38,7 +38,6 @@ TempoView {
 
     init { arg parent, tempoClock, clicks, accents, animate = true;
         clock = tempoClock;
-        parentView = parent;
         accents = accents ? Array.fill(clock.beatsPerBar, { Array.fill(clicks, 0) });
         view = UserView(parent, Rect(0, 0, parent.bounds.width, parent.bounds.height))
             .background_(Color.clear)

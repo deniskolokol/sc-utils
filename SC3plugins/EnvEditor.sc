@@ -1,401 +1,68 @@
-(
-// GUI settings.
-var width = 850;
-var height = 850;
-var gap = 5, margin = 5;
+EnvManager {
+    var <>levels, <>times, <>curve;
+    var envelope, envelopeOrig;
 
-// Colors
-var colorBg = Color.grey(0.15);
-var colorPane = Color.grey(0.2);
-var colorDraw = Color.grey(0.1);
-var transparent = Color.grey(alpha:0.0);
-var colorLabel = Color.white;
-var colorLabelDisabled = Color.grey(0.4);
-var colorEditBg = Color.grey;
-var colorLevel = Color.red;
-var colorLevVal = Color.yellow;
+    *new { arg levels, times, curve;
+        ^super.new.init(levels, times, curve)
+    }
 
-// Fonts
-var fontHeader = Font("Helvetica", 14);
-var fontLabel = Font("Helvetica", 12);
-var fontControl = Font("Helvetica", 10);
-var fontButton = Font("Helvetica", 11);
+    init { arg levels, times, curve;
+        levels = levels ? [0.0, 1.0];
+        times = times ? [1.0];
+        curve = curve ? [\linear];
 
-// GUI elements.
-var win;
-var paneTop, paneMain, paneBottom;
-var presetSelector;
-var plotView;
-var ctrlStripView;
+        envelope = this.makeEnvelope(levels, times, curve);
 
-// GUI refresher when overriding envelope
-var createEnv = { |levels, times, curves|
-    envelope = Env.new(levels, times, curves);
-    plotView.value = envelope.asSignal;
-    plotView.refresh
-};
+        // Original envelope is used to reset the envelope to its initial state.
+        envelopeOrig = envelope.copy;
+    }
 
-// TODO: Read this from external file
-var presets = (
-    flow: (
-        levels: [0.0, 0.219, 0.664, -0.511, -0.964, 0.556, 0.0],
-        times: [1.377, 1.059, 1.155, 1.245, 1.131, 2.117],
-        curve: [\sine, 2.071, \sine, \sine, 0.0, -3.617]
-    ),
-    wiggly: (
-        levels: [0.0, 0.855, -0.983, 0.911, -0.354, 0.093, 0.063, -0.697, -0.271, 0.0],
-        times: [1.827, 1.104, 2.085, 2.682, 1.114, 2.001, 2.045, 2.911, 1.701],
-        curve: [0.0, 0.0, 5.515, \sine, -16.179, \sine, \sine, \sine, \sine]
-    ),
-    broaderik: (
-        levels: [0.0, -0.092, -0.469, 0.624, -0.847, 0.309, 0.939, 0.447, -0.053, 0.374, -0.009, 0.0],
-        times: [3.516, 1.135, 4.689, 3.868, 3.263, 3.369, 3.301, 1.952, 1.168, 5.537, 4.497],
-        curve: [2.886, 0.0, 4.29, \sine, -1.721, 0.0, -11.733, 1.154, -15.583, 3.664, 1.355]
-    ),
-    zombki: (
-        levels: [0.0, -0.597, 0.967, -0.077, -0.583, 0.602, -0.292, -0.76, 0.997, 0.34, -0.967, 0.089, 0.612, 0.841, 0.0],
-        times: [2.608, 6.674, 2.612, 6.949, 1.392, 1.32, 8.755, 3.013, 5.986, 1.64, 1.756, 2.223, 1.43, 6.891],
-        curve: [\sine, -8.932, \sine, -18.882, 0.0, 0.0, 0.0, \sine, -3.03, -1.938, \sine, 4.377, \sine, 2.907]
-    ),
-    chaos: (
-        levels: [0.0, -0.168, 0.05, -0.129, -0.232, 0.196, 0.9, -0.644, -0.679, -0.793, 0.104, -0.571, 0.061, -0.617, 0.264, -0.867, 0.529, 0.925, 0.974, 0.0],
-        times: [2.838, 11.887, 8.25, 2.021, 9.967, 10.5, 10.647, 11.555, 6.593, 4.335, 4.215, 9.586, 1.464, 3.892, 1.141, 8.736, 12.437, 9.063, 3.147],
-        curve: [0.0, -2.067, \sine, 4.88, 0.0, 0.0, \sine, -13.804, 0.0, \sine, -7.557, \sine, \sine, 0.0, \sine, 7.58, 0.0, -3.453, 18.079]
-    )
-);
+    makeEnvelope { arg levels, times, curve;
+        ^Env(levels, times, curve)
+    }
 
-// Default preset and envelope descriptor that opens when the editor is opened
-// without Env.
-var defaultPreset = \flow;
-var envelope = Env(
-    presets[defaultPreset].levels,
-    presets[defaultPreset].times,
-    presets[defaultPreset].curve
-);
+    reset { envelope = envelopeOrig }
 
-var addSegment = { |index|
-    envelope.levels.insert(index+1, envelope.levels[index+1]);
-    envelope.times.insert(index, envelope.times[index]);
-    envelope.curves.insert(index, envelope.curves[index]);
-    createEnv.(envelope.levels, envelope.times, envelope.curves);
-    makeControlPanel.value;
-};
+    insertSegment { arg index, level = 1.0, time = 1.0, curve = \linear;
+        envelope.levels.insert(index+1, level);
+        envelope.times.insert(index, time);
+        envelope.curve.insert(index, curve);
+        envelope = this.makeEnvelope(envelope.levels, envelope.times, envelope.curve);
+    }
 
-var removeSegment = { |index|
-    if (envelope.levels.size > 2) {
-        envelope.levels.removeAt(index+1);
-        envelope.times.removeAt(index);
-        envelope.curves.removeAt(index);
-        createEnv.(envelope.levels, envelope.times, envelope.curves);
-        makeControlPanel.value;
-    } {
-        "Cannot delete the last segment.".postln;
-    };
-};
+    removeSegment { arg index;
+        if (envelope.levels.size > 2) {
+            envelope.levels.removeAt(index+1);
+            envelope.times.removeAt(index);
+            envelope.curve.removeAt(index);
+            envelope = this.makeEnvelope(envelope.levels, envelope.times, envelope.curve);
+        } {
+            "Cannot remove segment. Envelope must have at least 2 levels.".warn;
+        }
+    }
 
-// A simple panel creator with FlowLayout.
-var makePanel = { |parent, x, y, w, h, color|
-    var panel = CompositeView(parent, Rect(x, y, w, h)).background_(color ? colorPane);
-    panel.decorator = FlowLayout(panel.bounds, margin@margin, gap@gap);
-    panel;
-};
+    getLevels { ^envelope.levels }
+    getTimes { ^envelope.times }
+    getCurves { ^envelope.curve }
+}
 
-var updateColorScheme = { |knob|
-    knob.setColors(
-        stringColor: colorLabel,
-        numBackground: colorEditBg,
-        knobColors: [
-            colorDraw,
-            if (knob.enabled) {colorLevel} {colorLabelDisabled},
-            if (knob.enabled) {colorLabel} {colorLabelDisabled},
-            if (knob.enabled) {colorLevel} {colorLabelDisabled}
-        ],
-        numNormalColor:if (knob.enabled) {colorLevVal} {colorEditBg},
-    );
-};
+// bookmark
+EnvEditor {
+    var <>envManager, <>view;
+    var <parentView;
 
-var makeKnob = { |parent, label, spec, action, initVal, enabled=true|
-    var knobWidth = parent.bounds.width-(margin*2);
-    var knobHeight = knobWidth + 20;
+    *new { arg parent, envManager;
+        ^super.new.init(parent, envManager)
+    }
 
-    if (initVal.isNil) { initVal = spec.default };
-    updateColorScheme.value(
-        EZKnob(parent, knobWidth@knobHeight, " " ++ label.asString, spec,
-            { |ez| action.(ez.value) },
-            initVal, layout: \vert2
-        )
-        .font_(fontControl)
-        .enabled_(enabled)
-    )
-};
+    init { arg parent, envManager;
+        parentView = parent;
+        envManager = envManager;
 
-
-// GUI elements for controlling individual segment of the envelope.
-var makeControlStrip = { |index, parent|
-    var standardCurves = [\sine, \squared, \cubed, \exponential, \hold, \step, \welch];
-    var knobLevel, knobTime, knobCurve, pumCurve;
-
-    // Index label for the current envelope point.
-    StaticText(parent, (parent.bounds.width - 30 - (2*gap))@20)
-        .string_((index+1).asString.padLeft(2, string: "0"))
-        .align_(\center)
-        .stringColor_(colorLabel)
-        .background_(colorDraw)
-        .font_(fontHeader);
-
-    // Delete segment.
-    Button(parent, 25@20)
-        .states_([[
-            "×",
-            if ([0, envelope.times.size-1].includes(index)) { colorLabelDisabled } { colorLabel },
-            colorDraw
-        ]])
-        .font_(fontButton)
-        // Hide the delete button for the first and last segment
-        .enabled_([0, envelope.times.size-1].includes(index).not)
-        .action_({ |bt| removeSegment.(index) });
-
-    // Knobs for controlling parameters of the env (leaving labels empty to space them a bit).
-    // Make sure the last level cannot be changed (the Env should end with the level 0),
-    // and thus the last knob should be disabled (see enabled param).
-    knobLevel = makeKnob.(parent, " ", [-1.0, 1.0].asSpec,
-        { |ez|
-            envelope.levels[index+1] = ez.value;
-            createEnv.(envelope.levels, envelope.times, envelope.curves);
-        },
-        envelope.levels[index+1],
-        enabled: index != (envelope.levels.size-2)
-    );
-
-    knobTime = makeKnob.(parent, " ", [0.01, 2.00].asSpec,
-        { |ez|
-            envelope.times[index] = ez.value;
-            createEnv.(envelope.levels, envelope.times, envelope.curves);
-        },
-        envelope.times[index]
-    );
-
-    knobCurve = makeKnob.(parent, " ", [-5.0, 5.0].asSpec,
-        { |ez|
-            envelope.curves[index] = ez.value;
-            createEnv.(envelope.levels, envelope.times, envelope.curves);
-        },
-        initVal: if (standardCurves.includes(envelope.curves[index]), 0.0, envelope.curves[index]),
-        enabled: standardCurves.includes(envelope.curves[index]).not
-    );
-    knobCurve.knobView.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
-        if ((modifiers == 262144) and: (buttonNumber == 1)) {
-            "Ctrl+Click detected on knobCurve. Resetting slope to 0.0.".postln;
-            knobCurve.valueAction = 0.0; // Reset slope to 0.0 when Ctrl is pressed
-        };
-    };
-    knobCurve.labelView.mouseDownAction = knobCurve.knobView.mouseDownAction;
-
-    // Standard curves (mutually exclusive with slope).
-    pumCurve = EZPopUpMenu(parent,
-        (parent.bounds.width - (margin*2))@18,
-        //items: ['..'] ++ standardCurves,
-        items: ['..'] ++ standardCurves,
-        globalAction: { |menu|
-            // Disable slope knob if a standard curve is selected
-            knobCurve.enabled = menu.value == 0;
-            updateColorScheme.(knobCurve);
-
-            // Update the envelope curve based on the selected standard curve or
-            // slope value
-            if (menu.value == 0) {
-                envelope.curves[index] = knobCurve.value;
-            } {
-                // Use selected standard curve
-                envelope.curves[index] = standardCurves[menu.value - 1];
-            };
-            createEnv.(envelope.levels, envelope.times, envelope.curves);
-        },
-        initVal: (standardCurves.indexOf(envelope.curves[index]) ? -1) + 1,
-        labelWidth: 60
-    )
-    .setColors(
-        stringColor: colorLabel,
-        menuStringColor: colorLabel,
-        menuBackground: colorBg,
-        background: transparent,
-    ).font_(Font("Monospace", 12));
-
-    // Button for inserting/adding segments.
-    // Disable the left insert button for the first segment and the right
-    // insert button for the last segment.
-    Button(parent, 25@20)
-        .states_([["◀", (index == 0).if({ colorLabelDisabled }, { colorLabel }), colorDraw]])
-        .action_({ |bt| addSegment.value(index) })
-        .enabled_(index != 0);
-    StaticText(parent, (parent.bounds.width - 50 - (2*gap)-(2*margin))@20)
-        .string_("+")
-        .align_(\center)
-        .stringColor_(colorLabel)
-        .font_(fontHeader);    
-    Button(parent, 25@20)
-        .states_([["▶", (index < (envelope.times.size - 1)).if({ colorLabel }, { colorLabelDisabled }), colorDraw]])
-        .action_({ |bt| addSegment.value(index+1) })
-        .enabled_(index < (envelope.times.size - 1));
-};
-
-var makeControlPanel = {
-    var ctrlStripWidth = 80;
-
-    // Recalculate the composite view size based on new envelope
-    var compWidth = (envelope.times.size * ctrlStripWidth) + ((envelope.times.size - 1) * gap) + (margin * 2);
-
-    // Clear existing elements from the control panel
-    ctrlStripView.children.removeAll;
-    ctrlStripView.bounds = Rect(0, 0, compWidth, ctrlStripView.bounds.height);
-
-    // Reset the decorator
-    ctrlStripView.decorator = FlowLayout(ctrlStripView.bounds);
-
-    // Recreate GUI elements from the envelope instance
-    envelope.times.do { |value, i|
-        var pane = makePanel.(ctrlStripView, 0, 0, 80, ctrlStripView.bounds.height-(margin*2), colorBg);
-        makeControlStrip.value(i, pane);
-    };
-
-    ctrlStripView.refresh;
-};
-
-win = Window("EnvEditor", Rect(0, 0, width, height), resizable: false);
-win.background_(colorBg);
-
-// Available drawing area after outer margins and the gaps between rows.
-{
-    var innerW = width - (margin * 2);
-    var innerH = height - (margin * 2);
-    var stackH = innerH - (gap * 2);
-    var topH = (stackH * 0.04).floor;
-    var mainH = (stackH * 0.5).floor;
-    var bottomH = stackH - topH - mainH;
-
-    paneTop = makePanel.(win, margin, margin, innerW, topH, colorPane);
-    paneMain = makePanel.(win, margin, paneTop.bounds.bottom + gap, innerW, mainH, colorPane);
-    paneBottom = makePanel.(win, margin, paneMain.bounds.bottom + gap, innerW, bottomH, colorPane);
-}.value;
-
-
-// Main panel: Plotter
-// Warning: filling up this panel first to have a plotter GUI element ready for the rest
-{
-    plotView = Plotter(
-        name: "WT",
-        bounds: Rect(0, 0, paneMain.bounds.width-(margin * 2), paneMain.bounds.height - (margin * 2)),
-        parent: paneMain
-    )
-    .editMode_(false)
-    .plotMode_(\pfilled)
-    .value_(envelope);
-
-    plotView.setProperties(
-        \fontColor, Color(0.5, 1, 0);,
-        \plotColor, Color.red.alpha_(0.5),
-        \backgroundColor, colorDraw,
-        \gridColorY, Color.yellow(0.5),
-        \gridOnX, false
-    );
-    plotView.refresh;
-}.value;
-
-
-// Labels for control elements (curve, duration, slope, etc.)
-// Warning: creating and filling this panel prior to the top panel to have controls ready for the rest.
-{
-    var labelCtrl = { |parent, label, height|
-        StaticText(parent, 80@height)
-            .string_("  " ++ label.asString)
-            .align_(\bottomLeft)
-            .stringColor_(colorLabel)
-            .background_(colorBg)
-            .font_(fontHeader);
-    };
-
-    var labelCtrlPanel = makePanel.(paneBottom, 0, 0, 90, paneBottom.bounds.height-(2*margin), colorPane);
-
-    labelCtrl.(labelCtrlPanel, "segment", 20+gap);
-    labelCtrl.(labelCtrlPanel, "level", 85+gap);
-    labelCtrl.(labelCtrlPanel, "duration", 85+gap);
-    labelCtrl.(labelCtrlPanel, "slope", 85+gap);
-    labelCtrl.(labelCtrlPanel, "std curve", 20);
-}.value;
-
-
-// Scrolling area for controls of the envelope segments.
-{
-    var ctrlStripWidth = 80;
-    var compWidth = (envelope.times.size * ctrlStripWidth) + ((envelope.times.size - 1) * gap) + (margin * 2);
-    var scroll = ScrollView(paneBottom, Rect(0, 0, paneBottom.bounds.width-105, paneBottom.bounds.height-(margin*2)))
-        .background_(colorPane)
-        .hasVerticalScroller_(false)
-        .hasBorder_(false);
-    ctrlStripView = CompositeView(scroll, Rect(0, 0, compWidth, scroll.bounds.height)); // 'canvas' is this big
-
-    ctrlStripView.decorator = FlowLayout(ctrlStripView.bounds); // now we can use a decorator
-    makeControlPanel.value;
-}.value;
-
-
-// Top panel controls.
-{
-    var initVal;
-    presetSelector = EZPopUpMenu(paneTop,
-        Rect(margin, margin, paneTop.bounds.width * 0.35, paneTop.bounds.height * 0.8),
-        "Presets",
-        globalAction: { |m|
-            var val = presets[m.item];
-            createEnv.(val.levels, val.times, val.curve);
-
-            // Re-populate the controls.
-            makeControlPanel.value;
-        },
-        labelWidth: 60
-    ).setColors(
-        stringColor: colorLabel,
-        menuStringColor: colorLabel,
-        menuBackground: colorBg,
-        background: transparent,
-    ).font_(Font("Monospace", 12));
-
-    presets.keysValuesDo { |name, val, i|
-        presetSelector.addItem(name, { |a|
-            envelope = Env.new(val.levels, val.times, val.curve)
-        });
-
-        if (name == defaultPreset) { initVal = i };
-
-        // Re-draw the plot.
-        plotView.value = envelope.asSignal;
-        plotView.refresh;
-
-        // Re-populate the controls.
-        makeControlPanel.value;
-    };
-
-    presetSelector.valueAction_(initVal);
-}.value;
-
-// Preset control buttons
-{
-    ["Override", "Save as", "New", "New rand"].do { |label|
-        Button(paneTop,
-            Rect(0, 0, paneTop.bounds.width * 0.12, paneTop.bounds.height * 0.8)
-        ).states_([
-            [label, colorLabel, Color.grey(0.5)]
-        ]).font_(Font("Helvetica", 11)).action_({ |bt| bt.value.postln });
-    };
-}.value;
-
-
-// TODO:
-// Populate paneRight with the list of actions available for UNDO (use ScrollView).
-
-win.front;
-
-CmdPeriod.doOnce({
-    win.close;
-});
-)
+        view = UserView(parent, Rect(0, 0, parent.bounds.width, parent.bounds.height))
+            .background_(Color.clear)
+            .drawFunc_({ |usrView|
+                // Drawing code for the envelope editor will go here.
+            });
+    }
+}

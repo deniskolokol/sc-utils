@@ -183,13 +183,12 @@ var makeControlStrip = { |index, parent|
         initVal: if (standardCurves.includes(envelope.curves[index]), 0.0, envelope.curves[index]),
         enabled: standardCurves.includes(envelope.curves[index]).not
     );
-    knobCurve.knobView.mouseDownAction = { |view, x, y, modifiers, buttonNumber, clickCount|
+    knobCurve.knobView.mouseUpAction = { |view, x, y, modifiers, buttonNumber, clickCount|
         if ((modifiers == 262144) and: (buttonNumber == 1)) {
-            "Ctrl+Click detected on knobCurve. Resetting slope to 0.0.".postln;
-            knobCurve.valueAction = 0.0; // Reset slope to 0.0 when Ctrl is pressed
+            knobCurve.valueAction = 0.0
         };
     };
-    knobCurve.labelView.mouseDownAction = knobCurve.knobView.mouseDownAction;
+    knobCurve.labelView.mouseUpAction = knobCurve.knobView.mouseUpAction;
 
     // Standard curves (mutually exclusive with slope).
     pumCurve = EZPopUpMenu(parent,
